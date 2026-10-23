@@ -1,0 +1,6 @@
+{
+  "name": "Proyectos Construcciones",
+  "description": "Sistema ERP y Dashboard de Administración para Grupo Constructor con control de Centros de Costos, Tesorería, Estimaciones y Carga Única vía WhatsApp OCR.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

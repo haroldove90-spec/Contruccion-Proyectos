@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <!-- Modern Unencapsulated Construction Group Logo: Precision Geometric Cranes & Structural Beams -->
+  <path d="M20 100L45 20L65 20L40 100H20Z" fill="#0F172A"/>
+  <path d="M45 20L95 20L85 38L52 38L45 20Z" fill="#D97706"/>
+  <path d="M48 48L98 48L88 66L55 66L48 48Z" fill="#2563EB"/>
+  <path d="M38 76L102 76L92 94L32 94L38 76Z" fill="#0284C7"/>
+  <circle cx="102" cy="20" r="6" fill="#D97706"/>
+  <line x1="102" y1="20" x2="102" y2="48" stroke="#D97706" stroke-width="3" stroke-dasharray="3 3"/>
+</svg>
