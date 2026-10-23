@@ -175,11 +175,11 @@ export const PropuestaTecnicaView: React.FC = () => {
             <span className="text-xs text-slate-500 font-semibold block uppercase">
               Desarrollo e Implementación
             </span>
-            <div className="text-xl font-bold font-mono text-slate-900 mt-1">
-              $185,000 MXN
+            <div className="text-xl font-black font-mono text-amber-600 mt-1 tracking-wider">
+              COTIZAR
             </div>
-            <span className="text-[11px] text-slate-400 block mt-1">
-              Pago único dividido en 3 hitos de entrega
+            <span className="text-[11px] text-slate-500 block mt-1">
+              Cotizar según módulos y usuarios
             </span>
           </div>
 
@@ -187,11 +187,11 @@ export const PropuestaTecnicaView: React.FC = () => {
             <span className="text-xs text-slate-500 font-semibold block uppercase">
               Servidores Cloud & API OCR
             </span>
-            <div className="text-xl font-bold font-mono text-blue-700 mt-1">
-              $3,800 MXN / mes
+            <div className="text-xl font-black font-mono text-blue-700 mt-1 tracking-wider">
+              COTIZAR
             </div>
-            <span className="text-[11px] text-slate-400 block mt-1">
-              Infraestructura segura, respaldos y consumo IA
+            <span className="text-[11px] text-slate-500 block mt-1">
+              Cotizar según consumo y volumen
             </span>
           </div>
 
@@ -199,11 +199,11 @@ export const PropuestaTecnicaView: React.FC = () => {
             <span className="text-xs text-slate-500 font-semibold block uppercase">
               Soporte Técnico y SLA
             </span>
-            <div className="text-xl font-bold font-mono text-emerald-700 mt-1">
-              $4,500 MXN / mes
+            <div className="text-xl font-black font-mono text-emerald-700 mt-1 tracking-wider">
+              COTIZAR
             </div>
-            <span className="text-[11px] text-slate-400 block mt-1">
-              Atención prioritaria y mantenimiento evolutivo
+            <span className="text-[11px] text-slate-500 block mt-1">
+              Cotizar según nivel de servicio
             </span>
           </div>
         </div>

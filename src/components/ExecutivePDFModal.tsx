@@ -363,47 +363,47 @@ export const ExecutivePDFModal: React.FC<ExecutivePDFModalProps> = ({ isOpen, on
           </div>
         </section>
 
-        {/* ==================== 6. PRESUPUESTO ECONÓMICO ==================== */}
+        {/* ==================== 04. PRESUPUESTO ECONÓMICO Y SOPORTE ==================== */}
         <section className="mb-4 avoid-break-inside">
           <h2 className="text-base font-black text-slate-900 uppercase tracking-wider pb-2 border-b border-slate-200 flex items-center gap-2">
-            <span className="text-amber-600">06.</span>
-            <span>Presupuesto Económico y Soporte</span>
+            <span className="text-amber-600">04.</span>
+            <span>PRESUPUESTO ECONÓMICO Y SOPORTE</span>
           </h2>
 
           <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center">
               <span className="text-[10px] text-slate-500 uppercase font-bold block">
-                Desarrollo Llave en Mano
+                DESARROLLO LLAVE EN MANO
               </span>
-              <div className="text-lg font-bold font-mono text-slate-900 mt-1">
-                $185,000 MXN
+              <div className="text-lg font-black font-mono text-slate-900 mt-1 tracking-wider text-amber-600">
+                COTIZAR
               </div>
-              <span className="text-[10px] text-slate-400 block mt-0.5">
-                Pago en 3 hitos contra entrega funcional
+              <span className="text-[10px] text-slate-500 block mt-0.5 font-medium">
+                Cotizar según módulos y usuarios
               </span>
             </div>
 
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center">
               <span className="text-[10px] text-slate-500 uppercase font-bold block">
-                Infraestructura Cloud & OCR
+                INFRAESTRUCTURA CLOUD & OCR
               </span>
-              <div className="text-lg font-bold font-mono text-blue-700 mt-1">
-                $3,800 MXN / mes
+              <div className="text-lg font-black font-mono text-slate-900 mt-1 tracking-wider text-blue-700">
+                COTIZAR
               </div>
-              <span className="text-[10px] text-slate-400 block mt-0.5">
-                Hosting PWA, base de datos y consumo IA
+              <span className="text-[10px] text-slate-500 block mt-0.5 font-medium">
+                Cotizar según consumo y volumen
               </span>
             </div>
 
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center">
               <span className="text-[10px] text-slate-500 uppercase font-bold block">
-                Soporte y Mantenimiento SLA
+                SOPORTE Y MANTENIMIENTO SLA
               </span>
-              <div className="text-lg font-bold font-mono text-emerald-700 mt-1">
-                $4,500 MXN / mes
+              <div className="text-lg font-black font-mono text-slate-900 mt-1 tracking-wider text-emerald-700">
+                COTIZAR
               </div>
-              <span className="text-[10px] text-slate-400 block mt-0.5">
-                Monitoreo continuo y mejoras evolutivas
+              <span className="text-[10px] text-slate-500 block mt-0.5 font-medium">
+                Cotizar según póliza de servicio
               </span>
             </div>
           </div>
