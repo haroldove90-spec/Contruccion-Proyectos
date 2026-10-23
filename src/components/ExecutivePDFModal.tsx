@@ -363,11 +363,11 @@ export const ExecutivePDFModal: React.FC<ExecutivePDFModalProps> = ({ isOpen, on
           </div>
         </section>
 
-        {/* ==================== 6. FASES Y COSTOS ==================== */}
+        {/* ==================== 6. PRESUPUESTO ECONÓMICO ==================== */}
         <section className="mb-4 avoid-break-inside">
           <h2 className="text-base font-black text-slate-900 uppercase tracking-wider pb-2 border-b border-slate-200 flex items-center gap-2">
             <span className="text-amber-600">06.</span>
-            <span>Plan de Implementación y Presupuesto Económico</span>
+            <span>Presupuesto Económico y Soporte</span>
           </h2>
 
           <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
@@ -406,15 +406,6 @@ export const ExecutivePDFModal: React.FC<ExecutivePDFModalProps> = ({ isOpen, on
                 Monitoreo continuo y mejoras evolutivas
               </span>
             </div>
-          </div>
-
-          <div className="mt-4 p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 flex items-center justify-between">
-            <span className="font-medium">
-              Cronograma Total: <strong>12 Semanas de Despliegue Gradual</strong> (Fase 1: Obras y WhatsApp OCR, Fase 2: Tesorería y CXP/CXC, Fase 3: PWA y Consolidación Financiera).
-            </span>
-            <span className="font-bold text-amber-700 whitespace-nowrap hidden sm:inline">
-              Garantía de Satisfacción
-            </span>
           </div>
         </section>
 
