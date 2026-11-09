@@ -11,7 +11,7 @@ const ROLE_NAMES: Record<UserRole, { label: string; badgeColor: string }> = {
   admin: { label: 'Administración & Finanzas', badgeColor: 'bg-blue-900 text-blue-200' },
   residente: { label: 'Residente de Obra', badgeColor: 'bg-amber-600 text-white' },
   compras: { label: 'Compras & Proveedores', badgeColor: 'bg-emerald-700 text-white' },
-  proyectos: { label: 'Proyectos (Control Tipo 1)', badgeColor: 'bg-purple-900 text-purple-200' },
+  proyectos: { label: 'Proyectos (Control de Obra & Diseño)', badgeColor: 'bg-purple-900 text-purple-200' },
 };
 
 export const InstitutionalHeader: React.FC<{ onToggleSidebar?: () => void }> = () => {

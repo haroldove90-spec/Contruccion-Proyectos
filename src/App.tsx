@@ -21,6 +21,7 @@ import { ReportesFinancierosView } from './views/ReportesFinancierosView';
 import { WhatsAppOCRView } from './views/WhatsAppOCRView';
 import { PropuestaTecnicaView } from './views/PropuestaTecnicaView';
 import { ControlTipo1MainView } from './views/ControlTipo1MainView';
+import { ControlTipo4DMainView } from './views/ControlTipo4DMainView';
 
 const DashboardContent: React.FC = () => {
   const { currentRole, activeModule } = useERP();
@@ -35,6 +36,8 @@ const DashboardContent: React.FC = () => {
     switch (activeModule) {
       case 'control_tipo1':
         return <ControlTipo1MainView />;
+      case 'control_tipo4d':
+        return <ControlTipo4DMainView />;
       case 'centros_costos':
         return <CentrosCostosView />;
       case 'whatsapp_ocr':

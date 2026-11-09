@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useERP } from '../context/ERPContext';
+import { SubmoduleTipo1Key, SubmoduleTipo4DKey } from '../context/ERPContext';
 import {
   Building2,
   Receipt,
@@ -15,81 +16,172 @@ import {
   ShieldCheck,
   Zap,
   FolderKanban,
-  FileSpreadsheet,
+  Calculator,
+  HardHat,
+  Truck,
+  Package,
+  ShoppingBag,
+  BookOpen,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
-export const MODULES_CONFIG = [
-  {
-    id: 'control_tipo1',
-    label: 'Control_Tipo1_P0-00',
-    sublabel: '6 Submódulos Obra P0-00',
-    icon: FolderKanban,
-    badge: 'Proyectos',
-    highlight: true,
-  },
-  {
-    id: 'centros_costos',
-    label: 'Centros de Costos',
-    sublabel: 'Obras y Presupuestos',
-    icon: Building2,
-    badge: 'ERP',
-  },
-  {
-    id: 'whatsapp_ocr',
-    label: 'WhatsApp OCR',
-    sublabel: 'Carga Única Automática',
-    icon: MessageSquare,
-    badge: 'Clave IA',
-    highlight: true,
-  },
-  {
-    id: 'compras_gastos',
-    label: 'Compras y Gastos',
-    sublabel: 'Órdenes y Facturas',
-    icon: Receipt,
-  },
-  {
-    id: 'tesoreria',
-    label: 'Tesorería y Bancos',
-    sublabel: 'Cajas, Cuentas y Flujo',
-    icon: Landmark,
-  },
-  {
-    id: 'cuentas_pagar_cobrar',
-    label: 'Cuentas por Pagar / Cobrar',
-    sublabel: 'Proveedores y Clientes',
-    icon: Scale,
-  },
-  {
-    id: 'ventas_estimaciones',
-    label: 'Ventas y Estimaciones',
-    sublabel: 'Cobranza y Avance',
-    icon: TrendingUp,
-  },
-  {
-    id: 'programa_obra',
-    label: 'Programa de Obra',
-    sublabel: 'Avance % vs Gasto Ejercido',
-    icon: BarChart3,
-  },
-  {
-    id: 'reportes_financieros',
-    label: 'Reportes Financieros',
-    sublabel: 'Balance, P&L y Utilidad Real',
-    icon: PieChart,
-    badge: 'Tiempo Real',
-  },
-  {
-    id: 'propuesta_tecnica',
-    label: 'Propuesta Técnica ERP',
-    sublabel: 'Fases, Costos y Arquitectura',
-    icon: FileCode2,
-  },
-];
-
 export const DesktopSidebar: React.FC = () => {
-  const { activeModule, setActiveModule, lastSingleEntryImpact } = useERP();
+  const {
+    currentRole,
+    activeModule,
+    setActiveModule,
+    activeSubTipo1,
+    setActiveSubTipo1,
+    activeSubTipo4D,
+    setActiveSubTipo4D,
+    lastSingleEntryImpact,
+  } = useERP();
+
   const [collapsed, setCollapsed] = useState(false);
+  const [expandTipo1, setExpandTipo1] = useState(true);
+  const [expandTipo4D, setExpandTipo4D] = useState(true);
+
+  // Submodules config for Control_Tipo1_P0-00
+  const TIPO1_SUBMODULES: { id: SubmoduleTipo1Key; label: string; badge: string; icon: React.FC<{ className?: string }> }[] = [
+    { id: 'control_general', label: 'Control General', badge: '01', icon: FolderKanban },
+    { id: 'presupuesto_aditivas', label: 'Presupuesto y aditivas', badge: '02', icon: Calculator },
+    { id: 'mano_obra', label: 'Mano de obra', badge: '03', icon: HardHat },
+    { id: 'subcontratos', label: 'Sub-C y Prov', badge: '04', icon: Truck },
+    { id: 'materiales', label: 'Materiales', badge: '05', icon: Package },
+    { id: 'materiales_cliente', label: 'Materiales compras cliente', badge: '06', icon: ShoppingBag },
+  ];
+
+  // Submodules config for Control_Tipo4D_P0-00
+  const TIPO4D_SUBMODULES: { id: SubmoduleTipo4DKey; label: string; badge: string; icon: React.FC<{ className?: string }> }[] = [
+    { id: 'control_general_4d', label: 'Control General (TIR)', badge: '01', icon: Calculator },
+    { id: 'bitacora_observaciones', label: 'Bitácora observaciones', badge: '02', icon: BookOpen },
+    { id: 'materiales_cliente_4d', label: 'Materiales compras cliente', badge: '03', icon: ShoppingBag },
+  ];
+
+  interface RoleModuleItem {
+    id: string;
+    label: string;
+    sublabel: string;
+    icon: React.FC<{ className?: string }>;
+    badge?: string;
+    highlight?: boolean;
+  }
+
+  // Standard modules for other roles (Strictly filtered by role)
+  const getModulesForRole = (): RoleModuleItem[] => {
+    switch (currentRole) {
+      case 'socio':
+        return [
+          {
+            id: 'reportes_financieros',
+            label: 'Reportes Financieros',
+            sublabel: 'Balance, P&L y Utilidad Real',
+            icon: PieChart,
+            badge: 'Tiempo Real',
+          },
+          {
+            id: 'centros_costos',
+            label: 'Centros de Costos',
+            sublabel: 'Obras y Presupuestos',
+            icon: Building2,
+            badge: 'ERP',
+          },
+          {
+            id: 'ventas_estimaciones',
+            label: 'Ventas y Estimaciones',
+            sublabel: 'Cobranza y Avance',
+            icon: TrendingUp,
+          },
+          {
+            id: 'propuesta_tecnica',
+            label: 'Propuesta Técnica ERP',
+            sublabel: 'Dossier y Arquitectura',
+            icon: FileCode2,
+          },
+        ];
+      case 'admin':
+        return [
+          {
+            id: 'tesoreria',
+            label: 'Tesorería y Bancos',
+            sublabel: 'Cajas, Cuentas y Flujo',
+            icon: Landmark,
+            badge: 'Clave',
+          },
+          {
+            id: 'cuentas_pagar_cobrar',
+            label: 'Cuentas por Pagar / Cobrar',
+            sublabel: 'Proveedores y Clientes',
+            icon: Scale,
+          },
+          {
+            id: 'compras_gastos',
+            label: 'Compras y Gastos',
+            sublabel: 'Órdenes y Facturas',
+            icon: Receipt,
+          },
+          {
+            id: 'centros_costos',
+            label: 'Centros de Costos',
+            sublabel: 'Obras y Presupuestos',
+            icon: Building2,
+            badge: 'ERP',
+          },
+        ];
+      case 'residente':
+        return [
+          {
+            id: 'programa_obra',
+            label: 'Programa de Obra',
+            sublabel: 'Avance % vs Gasto Ejercido',
+            icon: BarChart3,
+            badge: 'Campo',
+          },
+          {
+            id: 'centros_costos',
+            label: 'Centros de Costos',
+            sublabel: 'Obras Asignadas',
+            icon: Building2,
+            badge: 'ERP',
+          },
+          {
+            id: 'compras_gastos',
+            label: 'Compras y Gastos',
+            sublabel: 'Requisiciones y Facturas',
+            icon: Receipt,
+          },
+        ];
+      case 'compras':
+        return [
+          {
+            id: 'whatsapp_ocr',
+            label: 'WhatsApp OCR',
+            sublabel: 'Carga Única Automática',
+            icon: MessageSquare,
+            badge: 'Clave IA',
+            highlight: true,
+          },
+          {
+            id: 'compras_gastos',
+            label: 'Compras y Gastos',
+            sublabel: 'Órdenes y Catálogo Prov.',
+            icon: Receipt,
+          },
+          {
+            id: 'cuentas_pagar_cobrar',
+            label: 'Cuentas por Pagar',
+            sublabel: 'Vencimientos a Proveedores',
+            icon: Scale,
+          },
+        ];
+      default:
+        return [];
+    }
+  };
+
+  const isProyectosRole = currentRole === 'proyectos';
+  const roleModules = getModulesForRole();
 
   return (
     <aside
@@ -97,12 +189,17 @@ export const DesktopSidebar: React.FC = () => {
         collapsed ? 'w-20' : 'w-72'
       }`}
     >
-      {/* Sidebar Controls Header */}
+      {/* Sidebar Header */}
       <div className="p-3 border-b border-slate-100 flex items-center justify-between">
         {!collapsed && (
-          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-2">
-            Módulos del Sistema
-          </span>
+          <div>
+            <span className="text-[10px] font-black text-amber-600 uppercase tracking-wider pl-1 block font-mono">
+              {currentRole ? `ROL: ${currentRole.toUpperCase()}` : 'SISTEMA'}
+            </span>
+            <span className="text-xs font-bold text-slate-800 pl-1">
+              Módulos Autorizados
+            </span>
+          </div>
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}
@@ -114,59 +211,197 @@ export const DesktopSidebar: React.FC = () => {
       </div>
 
       {/* Navigation List */}
-      <div className="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
-        {MODULES_CONFIG.map((mod) => {
-          const Icon = mod.icon;
-          const isActive = activeModule === mod.id;
-          return (
-            <button
-              key={mod.id}
-              onClick={() => setActiveModule(mod.id)}
-              className={`w-full group flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all cursor-pointer relative ${
-                isActive
-                  ? 'bg-slate-900 text-white shadow-xs font-semibold'
-                  : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-              } ${mod.highlight && !isActive ? 'ring-1 ring-amber-300/80 bg-amber-50/40 text-amber-900' : ''}`}
-              title={collapsed ? mod.label : undefined}
-            >
-              <Icon
-                className={`w-5 h-5 shrink-0 ${
-                  isActive
-                    ? 'text-amber-400'
-                    : mod.highlight
-                    ? 'text-amber-600'
-                    : 'text-slate-500 group-hover:text-slate-900'
+      <div className="flex-1 py-3 px-2 space-y-3 overflow-y-auto">
+        {/* If Role is Proyectos: Show exclusively Control_Tipo1_P0-00 and Control_Tipo4D_P0-00 */}
+        {isProyectosRole ? (
+          <div className="space-y-3">
+            {/* ================= GROUP 1: Control_Tipo1_P0-00 ================= */}
+            <div className="bg-slate-50/80 rounded-2xl border border-slate-200/80 p-1.5 overflow-hidden">
+              <button
+                onClick={() => {
+                  setActiveModule('control_tipo1');
+                  if (collapsed) setCollapsed(false);
+                  else setExpandTipo1(!expandTipo1);
+                }}
+                className={`w-full flex items-center justify-between p-2 rounded-xl transition-all ${
+                  activeModule === 'control_tipo1'
+                    ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
+                    : 'text-slate-700 hover:bg-white'
                 }`}
-              />
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <FolderKanban className={`w-4 h-4 shrink-0 ${activeModule === 'control_tipo1' ? 'text-slate-950' : 'text-amber-600'}`} />
+                  {!collapsed && (
+                    <div className="text-left truncate">
+                      <div className="text-xs font-bold tracking-tight">Control_Tipo1_P0-00</div>
+                      <div className={`text-[10px] truncate ${activeModule === 'control_tipo1' ? 'text-slate-900 font-semibold' : 'text-slate-400'}`}>
+                        6 Submódulos de Obra
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {!collapsed && (
+                  <div className="shrink-0 text-slate-500">
+                    {expandTipo1 ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </div>
+                )}
+              </button>
 
-              {!collapsed && (
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="text-xs truncate">{mod.label}</span>
-                    {mod.badge && (
-                      <span
-                        className={`text-[10px] px-1.5 py-0.2 rounded-md font-medium shrink-0 ${
-                          isActive
-                            ? 'bg-amber-400/20 text-amber-300'
-                            : 'bg-slate-100 text-slate-500'
+              {/* Submodules list for Tipo 1 */}
+              {!collapsed && expandTipo1 && (
+                <div className="mt-1 pl-2 pr-1 space-y-0.5 border-l-2 border-amber-300 ml-3 py-1">
+                  {TIPO1_SUBMODULES.map((sub) => {
+                    const SubIcon = sub.icon;
+                    const isSubActive = activeModule === 'control_tipo1' && activeSubTipo1 === sub.id;
+                    return (
+                      <button
+                        key={sub.id}
+                        onClick={() => {
+                          setActiveModule('control_tipo1');
+                          setActiveSubTipo1(sub.id);
+                        }}
+                        className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left text-xs transition-all ${
+                          isSubActive
+                            ? 'bg-slate-900 text-white font-bold shadow-2xs'
+                            : 'text-slate-600 hover:bg-white hover:text-slate-900'
                         }`}
                       >
-                        {mod.badge}
-                      </span>
-                    )}
-                  </div>
-                  <div
-                    className={`text-[11px] truncate ${
-                      isActive ? 'text-slate-400' : 'text-slate-400'
-                    }`}
-                  >
-                    {mod.sublabel}
-                  </div>
+                        <span
+                          className={`w-4 h-4 rounded flex items-center justify-center text-[9px] font-black shrink-0 ${
+                            isSubActive ? 'bg-amber-400 text-slate-950' : 'bg-slate-200 text-slate-600'
+                          }`}
+                        >
+                          {sub.badge}
+                        </span>
+                        <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-amber-400' : 'text-slate-400'}`} />
+                        <span className="truncate">{sub.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
-            </button>
-          );
-        })}
+            </div>
+
+            {/* ================= GROUP 2: Control_Tipo4D_P0-00 ================= */}
+            <div className="bg-slate-50/80 rounded-2xl border border-slate-200/80 p-1.5 overflow-hidden">
+              <button
+                onClick={() => {
+                  setActiveModule('control_tipo4d');
+                  if (collapsed) setCollapsed(false);
+                  else setExpandTipo4D(!expandTipo4D);
+                }}
+                className={`w-full flex items-center justify-between p-2 rounded-xl transition-all ${
+                  activeModule === 'control_tipo4d'
+                    ? 'bg-indigo-600 text-white font-black shadow-xs'
+                    : 'text-slate-700 hover:bg-white'
+                }`}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Calculator className={`w-4 h-4 shrink-0 ${activeModule === 'control_tipo4d' ? 'text-white' : 'text-indigo-600'}`} />
+                  {!collapsed && (
+                    <div className="text-left truncate">
+                      <div className="text-xs font-bold tracking-tight">Control_Tipo4D_P0-00</div>
+                      <div className={`text-[10px] truncate ${activeModule === 'control_tipo4d' ? 'text-indigo-200 font-semibold' : 'text-slate-400'}`}>
+                        TIR = A - B - C · 3 Submódulos
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {!collapsed && (
+                  <div className="shrink-0 text-slate-400">
+                    {expandTipo4D ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </div>
+                )}
+              </button>
+
+              {/* Submodules list for Tipo 4D */}
+              {!collapsed && expandTipo4D && (
+                <div className="mt-1 pl-2 pr-1 space-y-0.5 border-l-2 border-indigo-400 ml-3 py-1">
+                  {TIPO4D_SUBMODULES.map((sub) => {
+                    const SubIcon = sub.icon;
+                    const isSubActive = activeModule === 'control_tipo4d' && activeSubTipo4D === sub.id;
+                    return (
+                      <button
+                        key={sub.id}
+                        onClick={() => {
+                          setActiveModule('control_tipo4d');
+                          setActiveSubTipo4D(sub.id);
+                        }}
+                        className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left text-xs transition-all ${
+                          isSubActive
+                            ? 'bg-slate-900 text-white font-bold shadow-2xs'
+                            : 'text-slate-600 hover:bg-white hover:text-slate-900'
+                        }`}
+                      >
+                        <span
+                          className={`w-4 h-4 rounded flex items-center justify-center text-[9px] font-black shrink-0 ${
+                            isSubActive ? 'bg-indigo-400 text-slate-950' : 'bg-slate-200 text-slate-600'
+                          }`}
+                        >
+                          {sub.badge}
+                        </span>
+                        <SubIcon className={`w-3.5 h-3.5 shrink-0 ${isSubActive ? 'text-indigo-400' : 'text-slate-400'}`} />
+                        <span className="truncate">{sub.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* For other roles: Strictly show only their allowed modules */
+          <div className="space-y-1">
+            {roleModules.map((mod) => {
+              const Icon = mod.icon;
+              const isActive = activeModule === mod.id;
+              return (
+                <button
+                  key={mod.id}
+                  onClick={() => setActiveModule(mod.id)}
+                  className={`w-full group flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all cursor-pointer relative ${
+                    isActive
+                      ? 'bg-slate-900 text-white shadow-xs font-semibold'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  } ${mod.highlight && !isActive ? 'ring-1 ring-amber-300/80 bg-amber-50/40 text-amber-900' : ''}`}
+                  title={collapsed ? mod.label : undefined}
+                >
+                  <Icon
+                    className={`w-5 h-5 shrink-0 ${
+                      isActive
+                        ? 'text-amber-400'
+                        : mod.highlight
+                        ? 'text-amber-600'
+                        : 'text-slate-500 group-hover:text-slate-900'
+                    }`}
+                  />
+
+                  {!collapsed && (
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-xs truncate">{mod.label}</span>
+                        {mod.badge && (
+                          <span
+                            className={`text-[10px] px-1.5 py-0.2 rounded-md font-medium shrink-0 ${
+                              isActive
+                                ? 'bg-amber-400/20 text-amber-300'
+                                : 'bg-slate-100 text-slate-500'
+                            }`}
+                          >
+                            {mod.badge}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] truncate text-slate-400">
+                        {mod.sublabel}
+                      </div>
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Live Single Entry Status Notification Widget */}
@@ -181,7 +416,7 @@ export const DesktopSidebar: React.FC = () => {
           </p>
           <div className="mt-1 flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
             <ShieldCheck className="w-3 h-3" />
-            <span>4 módulos actualizados</span>
+            <span>Actualización en tiempo real</span>
           </div>
         </div>
       )}
@@ -190,7 +425,7 @@ export const DesktopSidebar: React.FC = () => {
       {!collapsed && (
         <div className="p-3 border-t border-slate-100 text-[11px] text-slate-400 flex items-center justify-between">
           <span>Grupo Constructor ERP</span>
-          <span className="font-mono">v2.4 PWA</span>
+          <span className="font-mono">v2.5 PWA</span>
         </div>
       )}
     </aside>

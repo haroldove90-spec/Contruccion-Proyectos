@@ -23,6 +23,21 @@ import {
 } from '../data/mockData';
 import { ControlTipo1Store } from '../types/controlTipo1';
 import { INITIAL_CONTROL_TIPO1_DATA } from '../data/controlTipo1Mock';
+import { ControlTipo4DStore } from '../types/controlTipo4D';
+import { INITIAL_CONTROL_TIPO4D_DATA } from '../data/controlTipo4DMock';
+
+export type SubmoduleTipo1Key =
+  | 'control_general'
+  | 'presupuesto_aditivas'
+  | 'mano_obra'
+  | 'subcontratos'
+  | 'materiales'
+  | 'materiales_cliente';
+
+export type SubmoduleTipo4DKey =
+  | 'control_general_4d'
+  | 'bitacora_observaciones'
+  | 'materiales_cliente_4d';
 
 interface AddExpenseParams {
   projectId: string;
@@ -92,6 +107,15 @@ interface ERPContextType {
   controlTipo1Data: ControlTipo1Store;
   updateControlTipo1Data: (updaterOrPartial: Partial<ControlTipo1Store> | ((prev: ControlTipo1Store) => ControlTipo1Store)) => void;
   resetControlTipo1Data: () => void;
+  activeSubTipo1: SubmoduleTipo1Key;
+  setActiveSubTipo1: (sub: SubmoduleTipo1Key) => void;
+
+  controlTipo4DData: ControlTipo4DStore;
+  updateControlTipo4DData: (updaterOrPartial: Partial<ControlTipo4DStore> | ((prev: ControlTipo4DStore) => ControlTipo4DStore)) => void;
+  resetControlTipo4DData: () => void;
+  activeSubTipo4D: SubmoduleTipo4DKey;
+  setActiveSubTipo4D: (sub: SubmoduleTipo4DKey) => void;
+
   clearLastImpact: () => void;
 }
 
@@ -181,6 +205,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved ? JSON.parse(saved) : INITIAL_CONTROL_TIPO1_DATA;
   });
 
+  const [activeSubTipo1, setActiveSubTipo1] = useState<SubmoduleTipo1Key>('control_general');
+
   useEffect(() => {
     localStorage.setItem('pc_erp_control_tipo1', JSON.stringify(controlTipo1Data));
   }, [controlTipo1Data]);
@@ -199,6 +225,33 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const resetControlTipo1Data = () => {
     localStorage.removeItem('pc_erp_control_tipo1');
     setControlTipo1Data(INITIAL_CONTROL_TIPO1_DATA);
+  };
+
+  const [controlTipo4DData, setControlTipo4DData] = useState<ControlTipo4DStore>(() => {
+    const saved = localStorage.getItem('pc_erp_control_tipo4d');
+    return saved ? JSON.parse(saved) : INITIAL_CONTROL_TIPO4D_DATA;
+  });
+
+  const [activeSubTipo4D, setActiveSubTipo4D] = useState<SubmoduleTipo4DKey>('control_general_4d');
+
+  useEffect(() => {
+    localStorage.setItem('pc_erp_control_tipo4d', JSON.stringify(controlTipo4DData));
+  }, [controlTipo4DData]);
+
+  const updateControlTipo4DData = (
+    updaterOrPartial: Partial<ControlTipo4DStore> | ((prev: ControlTipo4DStore) => ControlTipo4DStore)
+  ) => {
+    setControlTipo4DData((prev) => {
+      if (typeof updaterOrPartial === 'function') {
+        return updaterOrPartial(prev);
+      }
+      return { ...prev, ...updaterOrPartial };
+    });
+  };
+
+  const resetControlTipo4DData = () => {
+    localStorage.removeItem('pc_erp_control_tipo4d');
+    setControlTipo4DData(INITIAL_CONTROL_TIPO4D_DATA);
   };
 
   const setCurrentRole = (role: UserRole | null) => {
@@ -553,6 +606,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         controlTipo1Data,
         updateControlTipo1Data,
         resetControlTipo1Data,
+        activeSubTipo1,
+        setActiveSubTipo1,
+        controlTipo4DData,
+        updateControlTipo4DData,
+        resetControlTipo4DData,
+        activeSubTipo4D,
+        setActiveSubTipo4D,
       }}
     >
       {children}
