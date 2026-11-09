@@ -14,15 +14,25 @@ import {
   ChevronRight,
   ShieldCheck,
   Zap,
+  FolderKanban,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 export const MODULES_CONFIG = [
+  {
+    id: 'control_tipo1',
+    label: 'Control_Tipo1_P0-00',
+    sublabel: '6 Submódulos Obra P0-00',
+    icon: FolderKanban,
+    badge: 'Proyectos',
+    highlight: true,
+  },
   {
     id: 'centros_costos',
     label: 'Centros de Costos',
     sublabel: 'Obras y Presupuestos',
     icon: Building2,
-    badge: 'Proyectos',
+    badge: 'ERP',
   },
   {
     id: 'whatsapp_ocr',

@@ -21,6 +21,8 @@ import {
   INITIAL_ESTIMATIONS,
   INITIAL_SEATS,
 } from '../data/mockData';
+import { ControlTipo1Store } from '../types/controlTipo1';
+import { INITIAL_CONTROL_TIPO1_DATA } from '../data/controlTipo1Mock';
 
 interface AddExpenseParams {
   projectId: string;
@@ -87,6 +89,9 @@ interface ERPContextType {
       accounting: string;
     };
   } | null;
+  controlTipo1Data: ControlTipo1Store;
+  updateControlTipo1Data: (updaterOrPartial: Partial<ControlTipo1Store> | ((prev: ControlTipo1Store) => ControlTipo1Store)) => void;
+  resetControlTipo1Data: () => void;
   clearLastImpact: () => void;
 }
 
@@ -171,6 +176,31 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('pc_erp_seats', JSON.stringify(accountingSeats));
   }, [accountingSeats]);
 
+  const [controlTipo1Data, setControlTipo1Data] = useState<ControlTipo1Store>(() => {
+    const saved = localStorage.getItem('pc_erp_control_tipo1');
+    return saved ? JSON.parse(saved) : INITIAL_CONTROL_TIPO1_DATA;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('pc_erp_control_tipo1', JSON.stringify(controlTipo1Data));
+  }, [controlTipo1Data]);
+
+  const updateControlTipo1Data = (
+    updaterOrPartial: Partial<ControlTipo1Store> | ((prev: ControlTipo1Store) => ControlTipo1Store)
+  ) => {
+    setControlTipo1Data((prev) => {
+      if (typeof updaterOrPartial === 'function') {
+        return updaterOrPartial(prev);
+      }
+      return { ...prev, ...updaterOrPartial };
+    });
+  };
+
+  const resetControlTipo1Data = () => {
+    localStorage.removeItem('pc_erp_control_tipo1');
+    setControlTipo1Data(INITIAL_CONTROL_TIPO1_DATA);
+  };
+
   const setCurrentRole = (role: UserRole | null) => {
     setCurrentRoleState(role);
     if (role) {
@@ -180,6 +210,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       else if (role === 'admin') setActiveModule('tesoreria');
       else if (role === 'residente') setActiveModule('programa_obra');
       else if (role === 'compras') setActiveModule('whatsapp_ocr');
+      else if (role === 'proyectos') setActiveModule('control_tipo1');
     } else {
       localStorage.removeItem('pc_erp_role');
     }
@@ -519,6 +550,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resetAllData,
         lastSingleEntryImpact,
         clearLastImpact,
+        controlTipo1Data,
+        updateControlTipo1Data,
+        resetControlTipo1Data,
       }}
     >
       {children}

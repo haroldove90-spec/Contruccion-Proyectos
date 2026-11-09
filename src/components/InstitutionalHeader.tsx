@@ -11,6 +11,7 @@ const ROLE_NAMES: Record<UserRole, { label: string; badgeColor: string }> = {
   admin: { label: 'Administración & Finanzas', badgeColor: 'bg-blue-900 text-blue-200' },
   residente: { label: 'Residente de Obra', badgeColor: 'bg-amber-600 text-white' },
   compras: { label: 'Compras & Proveedores', badgeColor: 'bg-emerald-700 text-white' },
+  proyectos: { label: 'Proyectos (Control Tipo 1)', badgeColor: 'bg-purple-900 text-purple-200' },
 };
 
 export const InstitutionalHeader: React.FC<{ onToggleSidebar?: () => void }> = () => {
@@ -64,7 +65,9 @@ export const InstitutionalHeader: React.FC<{ onToggleSidebar?: () => void }> = (
                       ? 'bg-blue-600'
                       : currentRole === 'residente'
                       ? 'bg-amber-600'
-                      : 'bg-emerald-600'
+                      : currentRole === 'compras'
+                      ? 'bg-emerald-600'
+                      : 'bg-purple-600'
                   }`}
                 />
                 <span className="hidden sm:inline font-bold text-slate-900">
@@ -77,7 +80,9 @@ export const InstitutionalHeader: React.FC<{ onToggleSidebar?: () => void }> = (
                     ? 'Admin'
                     : currentRole === 'residente'
                     ? 'Obra'
-                    : 'Compras'}
+                    : currentRole === 'compras'
+                    ? 'Compras'
+                    : 'Proyectos'}
                 </span>
                 <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
               </div>
@@ -87,7 +92,7 @@ export const InstitutionalHeader: React.FC<{ onToggleSidebar?: () => void }> = (
                 <div className="px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                   Cambiar de Rol
                 </div>
-                {(['socio', 'admin', 'residente', 'compras'] as UserRole[]).map((r) => (
+                {(['socio', 'admin', 'residente', 'compras', 'proyectos'] as UserRole[]).map((r) => (
                   <button
                     key={r}
                     onClick={() => setCurrentRole(r)}

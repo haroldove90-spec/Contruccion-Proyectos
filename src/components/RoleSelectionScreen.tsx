@@ -2,7 +2,7 @@ import React from 'react';
 import { useERP } from '../context/ERPContext';
 import { UserRole } from '../types/erp';
 import { BrandLogo } from './BrandLogo';
-import { Briefcase, Landmark, HardHat, ShoppingCart } from 'lucide-react';
+import { Briefcase, Landmark, HardHat, ShoppingCart, FolderKanban } from 'lucide-react';
 
 interface RoleCardData {
   id: UserRole;
@@ -31,6 +31,11 @@ const ROLES: RoleCardData[] = [
     name: 'Compras & Proveedores',
     icon: ShoppingCart,
   },
+  {
+    id: 'proyectos',
+    name: 'Proyectos',
+    icon: FolderKanban,
+  },
 ];
 
 export const RoleSelectionScreen: React.FC = () => {
@@ -43,9 +48,9 @@ export const RoleSelectionScreen: React.FC = () => {
         <BrandLogo size="xl" showText={true} />
       </div>
 
-      {/* Cuadrícula 2 Columnas Móvil / 4 Columnas Escritorio */}
-      <div className="w-full max-w-5xl">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+      {/* Cuadrícula 2 Columnas Móvil / 5 Columnas Escritorio */}
+      <div className="w-full max-w-6xl">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-5">
           {ROLES.map((role) => {
             const Icon = role.icon;
             return (

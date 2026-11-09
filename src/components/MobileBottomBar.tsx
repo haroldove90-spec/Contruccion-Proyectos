@@ -12,6 +12,7 @@ import {
   TrendingUp,
   BarChart3,
   FileCode2,
+  FolderKanban,
 } from 'lucide-react';
 
 export const MobileBottomBar: React.FC = () => {
@@ -19,13 +20,14 @@ export const MobileBottomBar: React.FC = () => {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   const mainTabs = [
+    { id: 'control_tipo1', label: 'Tipo1 P0-00', icon: FolderKanban, highlight: true },
     { id: 'centros_costos', label: 'Obras', icon: Building2 },
-    { id: 'whatsapp_ocr', label: 'OCR WhatsApp', icon: MessageSquare, highlight: true },
-    { id: 'tesoreria', label: 'Tesorería', icon: Landmark },
+    { id: 'whatsapp_ocr', label: 'WhatsApp', icon: MessageSquare },
     { id: 'reportes_financieros', label: 'Finanzas', icon: PieChart },
   ];
 
   const secondaryModules = [
+    { id: 'tesoreria', label: 'Tesorería y Bancos', icon: Landmark },
     { id: 'compras_gastos', label: 'Compras y Gastos', icon: Receipt },
     { id: 'cuentas_pagar_cobrar', label: 'Cuentas x Pagar / Cobrar', icon: Scale },
     { id: 'ventas_estimaciones', label: 'Ventas y Estimaciones', icon: TrendingUp },
