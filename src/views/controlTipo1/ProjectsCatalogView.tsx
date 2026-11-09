@@ -6,14 +6,11 @@ import {
   FolderKanban,
   Calculator,
   Plus,
-  Eye,
-  FileSpreadsheet,
   Printer,
   Trash2,
   Calendar,
   Building2,
   CheckCircle2,
-  Clock,
   Sparkles,
   ArrowRight,
   Search,
@@ -21,7 +18,19 @@ import {
   Layers,
 } from 'lucide-react';
 
-export const ProjectsCatalogView: React.FC = () => {
+interface ProjectsCatalogViewProps {
+  filterType?: 'tipo1' | 'tipo3m' | 'all';
+  onSelectProject?: (project: ControlledProject) => void;
+  titleOverride?: string;
+  subtitleOverride?: string;
+}
+
+export const ProjectsCatalogView: React.FC<ProjectsCatalogViewProps> = ({
+  filterType = 'all',
+  onSelectProject,
+  titleOverride,
+  subtitleOverride,
+}) => {
   const {
     controlledProjects,
     activeControlledProjectId,
@@ -38,13 +47,15 @@ export const ProjectsCatalogView: React.FC = () => {
   const [selectedReportProject, setSelectedReportProject] = useState<ControlledProject | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<ControlledProject | null>(null);
 
+  const initialType: ControlType = filterType === 'tipo3m' ? 'tipo3m' : 'tipo1';
+
   // Form State
   const [form, setForm] = useState({
     code: `P0-0${controlledProjects.length}`,
     name: '',
     client: '',
     billingCompany: 'Proyectos y Edificaciones Santa Fe S.A. de C.V.',
-    controlType: 'tipo1' as ControlType,
+    controlType: initialType,
     initialBudget: 3500000,
     startDate: new Date().toISOString().split('T')[0],
     notes: '',
@@ -56,7 +67,7 @@ export const ProjectsCatalogView: React.FC = () => {
       name: '',
       client: '',
       billingCompany: 'Proyectos y Edificaciones Santa Fe S.A. de C.V.',
-      controlType: 'tipo1',
+      controlType: initialType,
       initialBudget: 3500000,
       startDate: new Date().toISOString().split('T')[0],
       notes: '',
@@ -68,7 +79,7 @@ export const ProjectsCatalogView: React.FC = () => {
     e.preventDefault();
     if (!form.name.trim() || !form.code.trim()) return;
 
-    addControlledProject({
+    const newProj = addControlledProject({
       code: form.code.trim().toUpperCase(),
       name: form.name.trim(),
       client: form.client.trim() || 'Cliente Particular',
@@ -81,25 +92,51 @@ export const ProjectsCatalogView: React.FC = () => {
     });
 
     setShowNewModal(false);
+
+    if (onSelectProject) {
+      onSelectProject(newProj);
+    }
   };
 
   const handleOpenProject = (proj: ControlledProject) => {
     setActiveControlledProjectId(proj.id);
-    if (proj.controlType === 'tipo1') {
-      setActiveModule('control_tipo1');
+    if (onSelectProject) {
+      onSelectProject(proj);
     } else {
-      setActiveModule('control_tipo4d');
+      if (proj.controlType === 'tipo1') {
+        setActiveModule('control_tipo1');
+      } else {
+        setActiveModule('control_tipo4d');
+      }
     }
   };
 
+  // Filter projects by filterType and search
   const filteredProjects = controlledProjects.filter((p) => {
+    const matchType = filterType === 'all' ? true : p.controlType === filterType;
     const q = searchTerm.toLowerCase();
-    return (
+    const matchSearch =
       p.name.toLowerCase().includes(q) ||
       p.code.toLowerCase().includes(q) ||
-      p.client.toLowerCase().includes(q)
-    );
+      p.client.toLowerCase().includes(q);
+    return matchType && matchSearch;
   });
+
+  const displayTitle =
+    titleOverride ||
+    (filterType === 'tipo1'
+      ? 'Obras y Proyectos (Control Tipo 1)'
+      : filterType === 'tipo3m'
+      ? 'Proyectos de Diseño y Obra (Control Tipo 3M)'
+      : 'Historial y Catálogo de Proyectos');
+
+  const displaySubtitle =
+    subtitleOverride ||
+    (filterType === 'tipo1'
+      ? 'Seleccione una obra para consultar y capturar sus 6 submódulos operativos, o genere su reporte unificado.'
+      : filterType === 'tipo3m'
+      ? 'Seleccione un proyecto para consultar y capturar sus 3 submódulos (TIR, Bitácora y Materiales Cliente).'
+      : 'Capture independientemente cada obra por submódulos y genere un solo reporte unificado consolidado en PDF y Excel.');
 
   return (
     <div className="space-y-6 animate-fadeIn pb-12">
@@ -112,24 +149,28 @@ export const ProjectsCatalogView: React.FC = () => {
             </span>
             <span className="text-xs text-amber-400 font-mono font-bold flex items-center gap-1">
               <Sparkles className="w-3.5 h-3.5" />
-              Gestión Centralizada de Obras
+              {filterType === 'tipo1'
+                ? 'Plantilla de 6 Submódulos'
+                : filterType === 'tipo3m'
+                ? 'Plantilla de 3 Submódulos (TIR)'
+                : 'Gestión Centralizada de Obras'}
             </span>
           </div>
           <h1 className="text-xl md:text-3xl font-black tracking-tight text-white mt-1.5">
-            Historial y Catálogo de Proyectos
+            {displayTitle}
           </h1>
-          <p className="text-xs md:text-sm text-slate-400 mt-1">
-            Capture independientemente cada obra por submódulos y genere un solo reporte unificado consolidado en PDF y Excel.
+          <p className="text-xs md:text-sm text-slate-400 mt-1 max-w-2xl">
+            {displaySubtitle}
           </p>
         </div>
 
         <div className="flex items-center gap-2 self-start md:self-auto">
           <button
             onClick={handleOpenNew}
-            className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs transition-all shadow-xs"
+            className="flex items-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs transition-all shadow-xs cursor-pointer"
           >
             <Plus className="w-4 h-4 stroke-[3]" />
-            <span>+ Dar de Alta Nuevo Proyecto</span>
+            <span>+ Agregar Nuevo Proyecto</span>
           </button>
         </div>
       </div>
@@ -156,134 +197,144 @@ export const ProjectsCatalogView: React.FC = () => {
         </div>
 
         <div className="text-xs font-mono text-slate-500 px-2">
-          {filteredProjects.length} obra(s) registrada(s)
+          {filteredProjects.length} obra(s) encontrada(s)
         </div>
       </div>
 
       {/* Projects Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {filteredProjects.map((proj) => {
-          const isActive = proj.id === activeControlledProjectId;
-          const isT1 = proj.controlType === 'tipo1';
+        {filteredProjects.length === 0 ? (
+          <div className="col-span-full bg-white p-12 text-center rounded-3xl border border-slate-200 shadow-2xs">
+            <FolderKanban className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+            <h3 className="text-base font-bold text-slate-800">No hay proyectos en esta sección</h3>
+            <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+              Utilice el botón superior para dar de alta un nuevo proyecto y comenzar a capturar sus submódulos.
+            </p>
+          </div>
+        ) : (
+          filteredProjects.map((proj) => {
+            const isActive = proj.id === activeControlledProjectId;
+            const isT1 = proj.controlType === 'tipo1';
 
-          return (
-            <div
-              key={proj.id}
-              className={`bg-white rounded-3xl border transition-all overflow-hidden flex flex-col justify-between ${
-                isActive
-                  ? 'border-amber-400 shadow-md ring-2 ring-amber-400/30'
-                  : 'border-slate-200 shadow-2xs hover:border-slate-300'
-              }`}
-            >
-              {/* Card Header */}
-              <div className="p-5">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2.5 py-1 bg-slate-900 text-amber-400 font-mono font-black text-xs rounded-lg">
-                      {proj.code}
-                    </span>
-                    <span
-                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${
-                        isT1
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-indigo-100 text-indigo-800'
-                      }`}
-                    >
-                      {isT1 ? 'Control_Tipo1 (6 Submódulos)' : 'Control_Tipo3M (3 Submódulos)'}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-1">
-                    {isActive && (
-                      <span className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                        <CheckCircle2 className="w-3 h-3 text-amber-600" />
-                        Activo
+            return (
+              <div
+                key={proj.id}
+                className={`bg-white rounded-3xl border transition-all overflow-hidden flex flex-col justify-between ${
+                  isActive
+                    ? 'border-amber-400 shadow-md ring-2 ring-amber-400/30'
+                    : 'border-slate-200 shadow-2xs hover:border-slate-300'
+                }`}
+              >
+                {/* Card Header */}
+                <div className="p-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-1 bg-slate-900 text-amber-400 font-mono font-black text-xs rounded-lg">
+                        {proj.code}
                       </span>
-                    )}
-                    <button
-                      onClick={() => setDeleteConfirm(proj)}
-                      className="p-1 text-slate-400 hover:text-red-600 rounded-lg transition-colors ml-1"
-                      title="Eliminar proyecto"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                      <span
+                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                          isT1
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-indigo-100 text-indigo-800'
+                        }`}
+                      >
+                        {isT1 ? 'Control_Tipo1 (6 Submódulos)' : 'Control_Tipo3M (3 Submódulos)'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      {isActive && (
+                        <span className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                          <CheckCircle2 className="w-3 h-3 text-amber-600" />
+                          Seleccionado
+                        </span>
+                      )}
+                      <button
+                        onClick={() => setDeleteConfirm(proj)}
+                        className="p-1 text-slate-400 hover:text-red-600 rounded-lg transition-colors ml-1"
+                        title="Eliminar proyecto"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <h3 className="text-lg font-black text-slate-900 mt-2 line-clamp-1">
+                    {proj.name}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">
+                    Cliente: <span className="font-semibold text-slate-700">{proj.client}</span>
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-slate-100 text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">
+                        Presupuesto Base
+                      </span>
+                      <span className="font-mono font-black text-slate-800 text-sm">
+                        ${proj.initialBudget.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase block">
+                        S.A. Facturadora
+                      </span>
+                      <span className="text-slate-700 font-medium text-[11px] truncate block">
+                        {proj.billingCompany}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Submodule Checklist Pills */}
+                  <div className="mt-4 pt-3 border-t border-slate-100">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5 font-mono">
+                      Submódulos Asignados:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {isT1 ? (
+                        <>
+                          <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium">01. Control Gral.</span>
+                          <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium">02. Presupuesto</span>
+                          <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium">03. Mano Obra (5%)</span>
+                          <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium">04. Sub-C</span>
+                          <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium">05. Materiales</span>
+                          <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium">06. Mat. Cliente</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md font-medium">01. Control Gral TIR (A-B-C)</span>
+                          <span className="text-[10px] bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md font-medium">02. Bitácora Observaciones</span>
+                          <span className="text-[10px] bg-teal-50 text-teal-700 px-2 py-0.5 rounded-md font-medium">03. Materiales Cliente</span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                <h3 className="text-lg font-black text-slate-900 mt-2 line-clamp-1">
-                  {proj.name}
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">
-                  Cliente: <span className="font-semibold text-slate-700">{proj.client}</span>
-                </p>
+                {/* Card Actions Footer */}
+                <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <button
+                    onClick={() => setSelectedReportProject(proj)}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                    title="Ver y descargar el informe único con todos los submódulos unidos"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Reporte Unificado</span>
+                  </button>
 
-                <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-slate-100 text-xs">
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">
-                      Presupuesto Base
-                    </span>
-                    <span className="font-mono font-black text-slate-800 text-sm">
-                      ${proj.initialBudget.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">
-                      S.A. Facturadora
-                    </span>
-                    <span className="text-slate-700 font-medium text-[11px] truncate block">
-                      {proj.billingCompany}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Submodule Checklist Pills */}
-                <div className="mt-4 pt-3 border-t border-slate-100">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5 font-mono">
-                    Submódulos Asignados:
-                  </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {isT1 ? (
-                      <>
-                        <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium">01. Control Gral.</span>
-                        <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium">02. Presupuesto</span>
-                        <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium">03. Mano Obra (5%)</span>
-                        <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium">04. Sub-C</span>
-                        <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium">05. Materiales</span>
-                        <span className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-medium">06. Mat. Cliente</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md font-medium">01. Control Gral TIR (A-B-C)</span>
-                        <span className="text-[10px] bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md font-medium">02. Bitácora Observaciones</span>
-                        <span className="text-[10px] bg-teal-50 text-teal-700 px-2 py-0.5 rounded-md font-medium">03. Materiales Cliente</span>
-                      </>
-                    )}
-                  </div>
+                  <button
+                    onClick={() => handleOpenProject(proj)}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                  >
+                    <span>Abrir Submódulos</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-amber-400" />
+                  </button>
                 </div>
               </div>
-
-              {/* Card Actions Footer */}
-              <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2">
-                <button
-                  onClick={() => setSelectedReportProject(proj)}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-all shadow-2xs"
-                  title="Ver y descargar el informe único con todos los submódulos unidos"
-                >
-                  <Printer className="w-3.5 h-3.5 text-amber-600" />
-                  <span>Reporte Unificado</span>
-                </button>
-
-                <button
-                  onClick={() => handleOpenProject(proj)}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
-                >
-                  <span>Abrir Submódulos</span>
-                  <ArrowRight className="w-3.5 h-3.5 text-amber-400" />
-                </button>
-              </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
 
       {/* Modal: + Nuevo Proyecto */}
