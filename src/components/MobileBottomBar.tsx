@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useERP } from '../context/ERPContext';
 import { SubmoduleTipo1Key, SubmoduleTipo4DKey } from '../context/ERPContext';
+import { UnifiedReportModal } from './UnifiedReportModal';
 import {
   Building2,
   MessageSquare,
@@ -20,6 +21,7 @@ import {
   Package,
   ShoppingBag,
   BookOpen,
+  Printer,
 } from 'lucide-react';
 
 export const MobileBottomBar: React.FC = () => {
@@ -31,9 +33,13 @@ export const MobileBottomBar: React.FC = () => {
     setActiveSubTipo1,
     activeSubTipo4D,
     setActiveSubTipo4D,
+    activeControlledProject,
+    controlTipo1Data,
+    controlTipo4DData,
   } = useERP();
 
   const [showSubMenu, setShowSubMenu] = useState(false);
+  const [showUnifiedModal, setShowUnifiedModal] = useState(false);
 
   // Submodules config for Proyectos
   const TIPO1_SUBMODULES: { id: SubmoduleTipo1Key; label: string; badge: string; icon: React.FC<{ className?: string }> }[] = [
@@ -201,12 +207,24 @@ export const MobileBottomBar: React.FC = () => {
           <>
             {/* Quick Proyectos Buttons */}
             <button
+              onClick={() => setActiveModule('historial_proyectos')}
+              className={`flex flex-col items-center justify-center py-1 px-1 rounded-lg transition-colors cursor-pointer min-w-[50px] ${
+                activeModule === 'historial_proyectos'
+                  ? 'text-amber-600 font-bold'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <Building2 className="w-5 h-5 stroke-[2.2]" />
+              <span className="text-[10px] mt-0.5 leading-none">Obras</span>
+            </button>
+
+            <button
               onClick={() => {
                 setActiveModule('control_tipo1');
                 setActiveSubTipo1('control_general');
               }}
-              className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-lg transition-colors cursor-pointer min-w-[55px] ${
-                activeModule === 'control_tipo1' && activeSubTipo1 === 'control_general'
+              className={`flex flex-col items-center justify-center py-1 px-1 rounded-lg transition-colors cursor-pointer min-w-[50px] ${
+                activeModule === 'control_tipo1'
                   ? 'text-amber-600 font-bold'
                   : 'text-slate-500 hover:text-slate-900'
               }`}
@@ -217,57 +235,35 @@ export const MobileBottomBar: React.FC = () => {
 
             <button
               onClick={() => {
-                setActiveModule('control_tipo1');
-                setActiveSubTipo1('mano_obra');
-              }}
-              className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-lg transition-colors cursor-pointer min-w-[55px] ${
-                activeModule === 'control_tipo1' && activeSubTipo1 === 'mano_obra'
-                  ? 'text-amber-600 font-bold'
-                  : 'text-slate-500 hover:text-slate-900'
-              }`}
-            >
-              <HardHat className="w-5 h-5" />
-              <span className="text-[10px] mt-0.5 leading-none">Mano Obra</span>
-            </button>
-
-            <button
-              onClick={() => {
                 setActiveModule('control_tipo4d');
                 setActiveSubTipo4D('control_general_4d');
               }}
-              className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-lg transition-colors cursor-pointer min-w-[55px] ${
-                activeModule === 'control_tipo4d' && activeSubTipo4D === 'control_general_4d'
+              className={`flex flex-col items-center justify-center py-1 px-1 rounded-lg transition-colors cursor-pointer min-w-[50px] ${
+                activeModule === 'control_tipo4d'
                   ? 'text-indigo-600 font-bold'
                   : 'text-slate-500 hover:text-slate-900'
               }`}
             >
               <Calculator className="w-5 h-5 stroke-[2.2]" />
-              <span className="text-[10px] mt-0.5 leading-none">TIR 4D</span>
+              <span className="text-[10px] mt-0.5 leading-none">Tipo 3M</span>
             </button>
 
             <button
-              onClick={() => {
-                setActiveModule('control_tipo4d');
-                setActiveSubTipo4D('bitacora_observaciones');
-              }}
-              className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-lg transition-colors cursor-pointer min-w-[55px] ${
-                activeModule === 'control_tipo4d' && activeSubTipo4D === 'bitacora_observaciones'
-                  ? 'text-purple-600 font-bold'
-                  : 'text-slate-500 hover:text-slate-900'
-              }`}
+              onClick={() => setShowUnifiedModal(true)}
+              className="flex flex-col items-center justify-center py-1 px-1 rounded-lg transition-colors cursor-pointer min-w-[50px] text-amber-600 hover:text-amber-700"
             >
-              <BookOpen className="w-5 h-5" />
-              <span className="text-[10px] mt-0.5 leading-none">Bitácora</span>
+              <Printer className="w-5 h-5 stroke-[2.2]" />
+              <span className="text-[10px] mt-0.5 leading-none font-bold">Reporte</span>
             </button>
 
             <button
               onClick={() => setShowSubMenu(true)}
-              className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-lg transition-colors cursor-pointer min-w-[55px] ${
-                showSubMenu ? 'text-amber-600' : 'text-slate-500 hover:text-slate-900'
+              className={`flex flex-col items-center justify-center py-1 px-1 rounded-lg transition-colors cursor-pointer min-w-[50px] ${
+                showSubMenu ? 'text-amber-600 font-bold' : 'text-slate-500 hover:text-slate-900'
               }`}
             >
               <Menu className="w-5 h-5" />
-              <span className="text-[10px] mt-0.5 leading-none font-bold">Submódulos</span>
+              <span className="text-[10px] mt-0.5 leading-none">Módulos</span>
             </button>
           </>
         ) : (
@@ -301,6 +297,16 @@ export const MobileBottomBar: React.FC = () => {
           })
         )}
       </nav>
+
+      {/* Unified Report Modal Mobile */}
+      {showUnifiedModal && activeControlledProject && (
+        <UnifiedReportModal
+          project={activeControlledProject}
+          tipo1Data={controlTipo1Data}
+          tipo3mData={controlTipo4DData}
+          onClose={() => setShowUnifiedModal(false)}
+        />
+      )}
     </>
   );
 };

@@ -6,6 +6,7 @@ import { SubManoObra } from './controlTipo1/SubManoObra';
 import { SubSubcontratos } from './controlTipo1/SubSubcontratos';
 import { SubMateriales } from './controlTipo1/SubMateriales';
 import { SubMaterialesCliente } from './controlTipo1/SubMaterialesCliente';
+import { UnifiedReportModal } from '../components/UnifiedReportModal';
 import {
   FolderKanban,
   Calculator,
@@ -16,11 +17,13 @@ import {
   RotateCcw,
   Sparkles,
   ShieldAlert,
+  Printer,
 } from 'lucide-react';
 
 export const ControlTipo1MainView: React.FC = () => {
-  const { activeSubTipo1, resetControlTipo1Data } = useERP();
+  const { activeSubTipo1, resetControlTipo1Data, activeControlledProject, controlTipo1Data } = useERP();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showUnifiedModal, setShowUnifiedModal] = useState(false);
 
   const subTitles = {
     control_general: {
@@ -98,15 +101,23 @@ export const ControlTipo1MainView: React.FC = () => {
             </div>
 
             <p className="text-[11px] text-slate-400 mt-3 pt-3 border-t border-slate-800 max-w-2xl font-mono">
-              Obra: <span className="text-slate-200 font-semibold">Residencia Campestre Vista Bella (P0-00)</span> ·
-              Cliente: <span className="text-slate-200 font-semibold">Desarrollos Residenciales del Norte S.A.</span>
+              Obra: <span className="text-slate-200 font-semibold">{activeControlledProject?.name || 'Residencia Campestre Vista Bella (P0-00)'}</span> ·
+              Cliente: <span className="text-slate-200 font-semibold">{activeControlledProject?.client || 'Desarrollos Residenciales del Norte S.A.'}</span>
             </p>
           </div>
 
-          <div className="flex items-center gap-2 self-start md:self-auto">
+          <div className="flex items-center gap-2 flex-wrap self-start md:self-auto">
+            <button
+              onClick={() => setShowUnifiedModal(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs transition-all shadow-xs cursor-pointer"
+              title="Generar un solo reporte uniendo los 6 submódulos en PDF y Excel"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Reporte Unificado (6 Submódulos)</span>
+            </button>
             <button
               onClick={() => setShowResetConfirm(true)}
-              className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all border border-slate-700 shadow-xs"
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all border border-slate-700 shadow-xs cursor-pointer"
               title="Restaurar datos predeterminados de las 6 hojas de cálculo"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -158,6 +169,14 @@ export const ControlTipo1MainView: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+      {/* Unified Report Modal */}
+      {showUnifiedModal && activeControlledProject && (
+        <UnifiedReportModal
+          project={activeControlledProject}
+          tipo1Data={controlTipo1Data}
+          onClose={() => setShowUnifiedModal(false)}
+        />
       )}
     </div>
   );

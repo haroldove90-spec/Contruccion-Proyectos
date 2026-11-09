@@ -22,6 +22,7 @@ import { WhatsAppOCRView } from './views/WhatsAppOCRView';
 import { PropuestaTecnicaView } from './views/PropuestaTecnicaView';
 import { ControlTipo1MainView } from './views/ControlTipo1MainView';
 import { ControlTipo4DMainView } from './views/ControlTipo4DMainView';
+import { ProjectsCatalogView } from './views/controlTipo1/ProjectsCatalogView';
 
 const DashboardContent: React.FC = () => {
   const { currentRole, activeModule } = useERP();
@@ -34,6 +35,8 @@ const DashboardContent: React.FC = () => {
   // Renderizador de módulos principales
   const renderActiveModule = () => {
     switch (activeModule) {
+      case 'historial_proyectos':
+        return <ProjectsCatalogView />;
       case 'control_tipo1':
         return <ControlTipo1MainView />;
       case 'control_tipo4d':

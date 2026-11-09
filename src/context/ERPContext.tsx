@@ -25,6 +25,8 @@ import { ControlTipo1Store } from '../types/controlTipo1';
 import { INITIAL_CONTROL_TIPO1_DATA } from '../data/controlTipo1Mock';
 import { ControlTipo4DStore } from '../types/controlTipo4D';
 import { INITIAL_CONTROL_TIPO4D_DATA } from '../data/controlTipo4DMock';
+import { ControlledProject } from '../types/projectControl';
+import { INITIAL_CONTROLLED_PROJECTS } from '../data/controlledProjectsMock';
 
 export type SubmoduleTipo1Key =
   | 'control_general'
@@ -115,6 +117,13 @@ interface ERPContextType {
   resetControlTipo4DData: () => void;
   activeSubTipo4D: SubmoduleTipo4DKey;
   setActiveSubTipo4D: (sub: SubmoduleTipo4DKey) => void;
+
+  controlledProjects: ControlledProject[];
+  activeControlledProjectId: string;
+  setActiveControlledProjectId: (id: string) => void;
+  activeControlledProject: ControlledProject;
+  addControlledProject: (project: Omit<ControlledProject, 'id'>) => ControlledProject;
+  deleteControlledProject: (id: string) => void;
 
   clearLastImpact: () => void;
 }
@@ -252,6 +261,60 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const resetControlTipo4DData = () => {
     localStorage.removeItem('pc_erp_control_tipo4d');
     setControlTipo4DData(INITIAL_CONTROL_TIPO4D_DATA);
+  };
+
+  const [controlledProjects, setControlledProjects] = useState<ControlledProject[]>(() => {
+    const saved = localStorage.getItem('pc_erp_controlled_projects');
+    return saved ? JSON.parse(saved) : INITIAL_CONTROLLED_PROJECTS;
+  });
+
+  const [activeControlledProjectId, setActiveControlledProjectIdState] = useState<string>(() => {
+    const saved = localStorage.getItem('pc_erp_active_controlled_proj_id');
+    return saved || 'proj-p0-00';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('pc_erp_controlled_projects', JSON.stringify(controlledProjects));
+  }, [controlledProjects]);
+
+  useEffect(() => {
+    localStorage.setItem('pc_erp_active_controlled_proj_id', activeControlledProjectId);
+  }, [activeControlledProjectId]);
+
+  const activeControlledProject =
+    controlledProjects.find((p) => p.id === activeControlledProjectId) || controlledProjects[0];
+
+  const setActiveControlledProjectId = (id: string) => {
+    setActiveControlledProjectIdState(id);
+    const targetProj = controlledProjects.find((p) => p.id === id);
+    if (targetProj) {
+      if (targetProj.controlType === 'tipo1') {
+        setActiveModule('control_tipo1');
+      } else {
+        setActiveModule('control_tipo4d');
+      }
+    }
+  };
+
+  const addControlledProject = (projectData: Omit<ControlledProject, 'id'>) => {
+    const newId = `proj-${Date.now()}`;
+    const newProj: ControlledProject = {
+      ...projectData,
+      id: newId,
+    };
+    setControlledProjects((prev) => [newProj, ...prev]);
+    setActiveControlledProjectId(newId);
+    return newProj;
+  };
+
+  const deleteControlledProject = (id: string) => {
+    setControlledProjects((prev) => prev.filter((p) => p.id !== id));
+    if (activeControlledProjectId === id) {
+      const remaining = controlledProjects.filter((p) => p.id !== id);
+      if (remaining.length > 0) {
+        setActiveControlledProjectId(remaining[0].id);
+      }
+    }
   };
 
   const setCurrentRole = (role: UserRole | null) => {
@@ -613,6 +676,12 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         resetControlTipo4DData,
         activeSubTipo4D,
         setActiveSubTipo4D,
+        controlledProjects,
+        activeControlledProjectId,
+        setActiveControlledProjectId,
+        activeControlledProject,
+        addControlledProject,
+        deleteControlledProject,
       }}
     >
       {children}
