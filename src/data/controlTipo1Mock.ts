@@ -324,3 +324,41 @@ export const INITIAL_CONTROL_TIPO1_DATA: ControlTipo1Store = {
     }
   ]
 };
+
+export const createEmptyControlTipo1Data = (initialBudget: number = 0): ControlTipo1Store => {
+  const sinIva = initialBudget > 0 ? +(initialBudget / 1.16).toFixed(2) : 0;
+  const iva = +(initialBudget - sinIva).toFixed(2);
+  return {
+    controlGeneral: {
+      fechaActualizacion: new Date().toISOString().split('T')[0],
+      presupuestoObraSinIva: sinIva,
+      presupuestoObraIva: iva,
+      presupuestoObraTotal: initialBudget,
+      aditivasSinIva: 0,
+      aditivasIva: 0,
+      aditivasTotal: 0,
+      deductivasSinIva: 0,
+      deductivasIva: 0,
+      deductivasTotal: 0,
+      costoReconocidoConImss: 0,
+      costoReconocidoSinImss: 0,
+      utilidadPorReconocer: 0,
+      sobreCostoPronosticado: 0,
+      notas: [],
+      pagosCliente: [],
+      honorariosImprevistosPagos: [],
+    },
+    presupuestoAditivas: {
+      fechaActualizacion: new Date().toISOString().split('T')[0],
+      presupuestoInicialSinIva: sinIva,
+      presupuestoInicialIva: iva,
+      presupuestoInicialTotal: initialBudget,
+      aditivas: [],
+      deductivas: [],
+    },
+    manoObra: [],
+    subcontratos: [],
+    materiales: [],
+    materialesCliente: [],
+  };
+};

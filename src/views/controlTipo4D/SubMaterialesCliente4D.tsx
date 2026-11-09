@@ -51,6 +51,12 @@ export const SubMaterialesCliente4D: React.FC = () => {
     empresaProveedora: '',
   });
 
+  React.useEffect(() => {
+    if (!materialesCliente.find((p) => p.id === targetProvId)) {
+      setTargetProvId(materialesCliente[0]?.id || '');
+    }
+  }, [materialesCliente, targetProvId]);
+
   // Consolidated calculations
   const totalPagosSinIva = materialesCliente.reduce(
     (acc, p) => acc + p.compras.reduce((cacc, c) => cacc + c.pagoSinIva, 0),
@@ -463,6 +469,15 @@ export const SubMaterialesCliente4D: React.FC = () => {
                 ? 'No hay registros que coincidan con la búsqueda. Intente con otros términos.'
                 : 'Registre las empresas proveedoras del cliente para conciliar los suministros de obra.'}
             </p>
+            {!searchTerm && (
+              <button
+                onClick={() => setShowProveedorModal(true)}
+                className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4 stroke-[3]" />
+                <span>+ Agregar Empresa Proveedora</span>
+              </button>
+            )}
           </div>
         ) : (
           filteredMaterialesCliente.map((prov) => {

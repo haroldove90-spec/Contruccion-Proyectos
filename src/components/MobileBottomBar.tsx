@@ -26,6 +26,7 @@ export const MobileBottomBar: React.FC = () => {
     activeControlledProject,
     controlTipo1Data,
     controlTipo4DData,
+    setProjectWorkspaceMode,
   } = useERP();
 
   const [showUnifiedModal, setShowUnifiedModal] = useState(false);
@@ -79,7 +80,10 @@ export const MobileBottomBar: React.FC = () => {
           <>
             {/* Quick Clean Proyectos Buttons */}
             <button
-              onClick={() => setActiveModule('control_tipo1')}
+              onClick={() => {
+                setActiveModule('control_tipo1');
+                setProjectWorkspaceMode('catalog');
+              }}
               className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-colors cursor-pointer min-w-[55px] ${
                 activeModule === 'control_tipo1'
                   ? 'text-amber-600 font-bold bg-amber-50'
@@ -91,7 +95,10 @@ export const MobileBottomBar: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setActiveModule('control_tipo4d')}
+              onClick={() => {
+                setActiveModule('control_tipo4d');
+                setProjectWorkspaceMode('catalog');
+              }}
               className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-colors cursor-pointer min-w-[55px] ${
                 activeModule === 'control_tipo4d'
                   ? 'text-indigo-600 font-bold bg-indigo-50'

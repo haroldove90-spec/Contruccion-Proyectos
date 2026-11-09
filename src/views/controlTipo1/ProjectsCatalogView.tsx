@@ -37,8 +37,8 @@ export const ProjectsCatalogView: React.FC<ProjectsCatalogViewProps> = ({
     setActiveControlledProjectId,
     addControlledProject,
     deleteControlledProject,
-    controlTipo1Data,
-    controlTipo4DData,
+    getProjectTipo1Data,
+    getProjectTipo3mData,
     setActiveModule,
   } = useERP();
 
@@ -536,8 +536,8 @@ export const ProjectsCatalogView: React.FC<ProjectsCatalogViewProps> = ({
       {selectedReportProject && (
         <UnifiedReportModal
           project={selectedReportProject}
-          tipo1Data={controlTipo1Data}
-          tipo3mData={controlTipo4DData}
+          tipo1Data={getProjectTipo1Data(selectedReportProject.id)}
+          tipo3mData={getProjectTipo3mData(selectedReportProject.id)}
           onClose={() => setSelectedReportProject(null)}
         />
       )}

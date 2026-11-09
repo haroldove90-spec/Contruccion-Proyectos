@@ -22,9 +22,9 @@ import {
   INITIAL_SEATS,
 } from '../data/mockData';
 import { ControlTipo1Store } from '../types/controlTipo1';
-import { INITIAL_CONTROL_TIPO1_DATA } from '../data/controlTipo1Mock';
+import { INITIAL_CONTROL_TIPO1_DATA, createEmptyControlTipo1Data } from '../data/controlTipo1Mock';
 import { ControlTipo4DStore } from '../types/controlTipo4D';
-import { INITIAL_CONTROL_TIPO4D_DATA } from '../data/controlTipo4DMock';
+import { INITIAL_CONTROL_TIPO4D_DATA, createEmptyControlTipo4DData } from '../data/controlTipo4DMock';
 import { ControlledProject } from '../types/projectControl';
 import { INITIAL_CONTROLLED_PROJECTS } from '../data/controlledProjectsMock';
 
@@ -109,12 +109,14 @@ interface ERPContextType {
   controlTipo1Data: ControlTipo1Store;
   updateControlTipo1Data: (updaterOrPartial: Partial<ControlTipo1Store> | ((prev: ControlTipo1Store) => ControlTipo1Store)) => void;
   resetControlTipo1Data: () => void;
+  getProjectTipo1Data: (projectId: string) => ControlTipo1Store;
   activeSubTipo1: SubmoduleTipo1Key;
   setActiveSubTipo1: (sub: SubmoduleTipo1Key) => void;
 
   controlTipo4DData: ControlTipo4DStore;
   updateControlTipo4DData: (updaterOrPartial: Partial<ControlTipo4DStore> | ((prev: ControlTipo4DStore) => ControlTipo4DStore)) => void;
   resetControlTipo4DData: () => void;
+  getProjectTipo3mData: (projectId: string) => ControlTipo4DStore;
   activeSubTipo4D: SubmoduleTipo4DKey;
   setActiveSubTipo4D: (sub: SubmoduleTipo4DKey) => void;
 
@@ -124,6 +126,8 @@ interface ERPContextType {
   activeControlledProject: ControlledProject;
   addControlledProject: (project: Omit<ControlledProject, 'id'>) => ControlledProject;
   deleteControlledProject: (id: string) => void;
+  projectWorkspaceMode: 'catalog' | 'workspace';
+  setProjectWorkspaceMode: (mode: 'catalog' | 'workspace') => void;
 
   clearLastImpact: () => void;
 }
@@ -209,60 +213,6 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('pc_erp_seats', JSON.stringify(accountingSeats));
   }, [accountingSeats]);
 
-  const [controlTipo1Data, setControlTipo1Data] = useState<ControlTipo1Store>(() => {
-    const saved = localStorage.getItem('pc_erp_control_tipo1');
-    return saved ? JSON.parse(saved) : INITIAL_CONTROL_TIPO1_DATA;
-  });
-
-  const [activeSubTipo1, setActiveSubTipo1] = useState<SubmoduleTipo1Key>('control_general');
-
-  useEffect(() => {
-    localStorage.setItem('pc_erp_control_tipo1', JSON.stringify(controlTipo1Data));
-  }, [controlTipo1Data]);
-
-  const updateControlTipo1Data = (
-    updaterOrPartial: Partial<ControlTipo1Store> | ((prev: ControlTipo1Store) => ControlTipo1Store)
-  ) => {
-    setControlTipo1Data((prev) => {
-      if (typeof updaterOrPartial === 'function') {
-        return updaterOrPartial(prev);
-      }
-      return { ...prev, ...updaterOrPartial };
-    });
-  };
-
-  const resetControlTipo1Data = () => {
-    localStorage.removeItem('pc_erp_control_tipo1');
-    setControlTipo1Data(INITIAL_CONTROL_TIPO1_DATA);
-  };
-
-  const [controlTipo4DData, setControlTipo4DData] = useState<ControlTipo4DStore>(() => {
-    const saved = localStorage.getItem('pc_erp_control_tipo4d');
-    return saved ? JSON.parse(saved) : INITIAL_CONTROL_TIPO4D_DATA;
-  });
-
-  const [activeSubTipo4D, setActiveSubTipo4D] = useState<SubmoduleTipo4DKey>('control_general_4d');
-
-  useEffect(() => {
-    localStorage.setItem('pc_erp_control_tipo4d', JSON.stringify(controlTipo4DData));
-  }, [controlTipo4DData]);
-
-  const updateControlTipo4DData = (
-    updaterOrPartial: Partial<ControlTipo4DStore> | ((prev: ControlTipo4DStore) => ControlTipo4DStore)
-  ) => {
-    setControlTipo4DData((prev) => {
-      if (typeof updaterOrPartial === 'function') {
-        return updaterOrPartial(prev);
-      }
-      return { ...prev, ...updaterOrPartial };
-    });
-  };
-
-  const resetControlTipo4DData = () => {
-    localStorage.removeItem('pc_erp_control_tipo4d');
-    setControlTipo4DData(INITIAL_CONTROL_TIPO4D_DATA);
-  };
-
   const [controlledProjects, setControlledProjects] = useState<ControlledProject[]>(() => {
     const saved = localStorage.getItem('pc_erp_controlled_projects');
     return saved ? JSON.parse(saved) : INITIAL_CONTROLLED_PROJECTS;
@@ -273,6 +223,43 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved || 'proj-p0-00';
   });
 
+  // Per-project data dictionary for Control Tipo 1
+  const [tipo1DataByProject, setTipo1DataByProject] = useState<Record<string, ControlTipo1Store>>(() => {
+    const saved = localStorage.getItem('pc_erp_tipo1_by_project');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // fallback
+      }
+    }
+    const singleSaved = localStorage.getItem('pc_erp_control_tipo1');
+    const p00Data = singleSaved ? JSON.parse(singleSaved) : INITIAL_CONTROL_TIPO1_DATA;
+    return {
+      'proj-p0-00': p00Data,
+    };
+  });
+
+  // Per-project data dictionary for Control Tipo 3M
+  const [tipo3mDataByProject, setTipo3mDataByProject] = useState<Record<string, ControlTipo4DStore>>(() => {
+    const saved = localStorage.getItem('pc_erp_tipo3m_by_project');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        // fallback
+      }
+    }
+    const singleSaved = localStorage.getItem('pc_erp_control_tipo4d');
+    const p01Data = singleSaved ? JSON.parse(singleSaved) : INITIAL_CONTROL_TIPO4D_DATA;
+    return {
+      'proj-p0-01': p01Data,
+    };
+  });
+
+  const [activeSubTipo1, setActiveSubTipo1] = useState<SubmoduleTipo1Key>('control_general');
+  const [activeSubTipo4D, setActiveSubTipo4D] = useState<SubmoduleTipo4DKey>('control_general_4d');
+
   useEffect(() => {
     localStorage.setItem('pc_erp_controlled_projects', JSON.stringify(controlledProjects));
   }, [controlledProjects]);
@@ -281,8 +268,97 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('pc_erp_active_controlled_proj_id', activeControlledProjectId);
   }, [activeControlledProjectId]);
 
+  const [projectWorkspaceMode, setProjectWorkspaceMode] = useState<'catalog' | 'workspace'>('catalog');
+
+  useEffect(() => {
+    localStorage.setItem('pc_erp_tipo1_by_project', JSON.stringify(tipo1DataByProject));
+  }, [tipo1DataByProject]);
+
+  useEffect(() => {
+    localStorage.setItem('pc_erp_tipo3m_by_project', JSON.stringify(tipo3mDataByProject));
+  }, [tipo3mDataByProject]);
+
   const activeControlledProject =
     controlledProjects.find((p) => p.id === activeControlledProjectId) || controlledProjects[0];
+
+  const getProjectTipo1Data = (projectId: string): ControlTipo1Store => {
+    if (tipo1DataByProject[projectId]) {
+      return tipo1DataByProject[projectId];
+    }
+    if (projectId === 'proj-p0-00') {
+      return INITIAL_CONTROL_TIPO1_DATA;
+    }
+    const targetProj = controlledProjects.find((p) => p.id === projectId);
+    return createEmptyControlTipo1Data(targetProj?.initialBudget || 0);
+  };
+
+  const getProjectTipo3mData = (projectId: string): ControlTipo4DStore => {
+    if (tipo3mDataByProject[projectId]) {
+      return tipo3mDataByProject[projectId];
+    }
+    if (projectId === 'proj-p0-01') {
+      return INITIAL_CONTROL_TIPO4D_DATA;
+    }
+    const targetProj = controlledProjects.find((p) => p.id === projectId);
+    return createEmptyControlTipo4DData(targetProj?.name || '');
+  };
+
+  const controlTipo1Data = getProjectTipo1Data(activeControlledProjectId);
+  const controlTipo4DData = getProjectTipo3mData(activeControlledProjectId);
+
+  const updateControlTipo1Data = (
+    updaterOrPartial: Partial<ControlTipo1Store> | ((prev: ControlTipo1Store) => ControlTipo1Store)
+  ) => {
+    setTipo1DataByProject((prev) => {
+      const current = prev[activeControlledProjectId] || getProjectTipo1Data(activeControlledProjectId);
+      const updated =
+        typeof updaterOrPartial === 'function' ? updaterOrPartial(current) : { ...current, ...updaterOrPartial };
+      return {
+        ...prev,
+        [activeControlledProjectId]: updated,
+      };
+    });
+  };
+
+  const resetControlTipo1Data = () => {
+    setTipo1DataByProject((prev) => {
+      const copy = { ...prev };
+      if (activeControlledProjectId === 'proj-p0-00') {
+        copy[activeControlledProjectId] = INITIAL_CONTROL_TIPO1_DATA;
+      } else {
+        const targetProj = controlledProjects.find((p) => p.id === activeControlledProjectId);
+        copy[activeControlledProjectId] = createEmptyControlTipo1Data(targetProj?.initialBudget || 0);
+      }
+      return copy;
+    });
+  };
+
+  const updateControlTipo4DData = (
+    updaterOrPartial: Partial<ControlTipo4DStore> | ((prev: ControlTipo4DStore) => ControlTipo4DStore)
+  ) => {
+    setTipo3mDataByProject((prev) => {
+      const current = prev[activeControlledProjectId] || getProjectTipo3mData(activeControlledProjectId);
+      const updated =
+        typeof updaterOrPartial === 'function' ? updaterOrPartial(current) : { ...current, ...updaterOrPartial };
+      return {
+        ...prev,
+        [activeControlledProjectId]: updated,
+      };
+    });
+  };
+
+  const resetControlTipo4DData = () => {
+    setTipo3mDataByProject((prev) => {
+      const copy = { ...prev };
+      if (activeControlledProjectId === 'proj-p0-01') {
+        copy[activeControlledProjectId] = INITIAL_CONTROL_TIPO4D_DATA;
+      } else {
+        const targetProj = controlledProjects.find((p) => p.id === activeControlledProjectId);
+        copy[activeControlledProjectId] = createEmptyControlTipo4DData(targetProj?.name || '');
+      }
+      return copy;
+    });
+  };
 
   const setActiveControlledProjectId = (id: string) => {
     setActiveControlledProjectIdState(id);
@@ -302,13 +378,40 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...projectData,
       id: newId,
     };
+
+    // When creating a new project, initialize completely EMPTY submodules forms:
+    if (newProj.controlType === 'tipo1') {
+      const emptyStore = createEmptyControlTipo1Data(newProj.initialBudget);
+      setTipo1DataByProject((prev) => ({
+        ...prev,
+        [newId]: emptyStore,
+      }));
+    } else {
+      const emptyStore = createEmptyControlTipo4DData(newProj.name);
+      setTipo3mDataByProject((prev) => ({
+        ...prev,
+        [newId]: emptyStore,
+      }));
+    }
+
     setControlledProjects((prev) => [newProj, ...prev]);
     setActiveControlledProjectId(newId);
+    setProjectWorkspaceMode('workspace');
     return newProj;
   };
 
   const deleteControlledProject = (id: string) => {
     setControlledProjects((prev) => prev.filter((p) => p.id !== id));
+    setTipo1DataByProject((prev) => {
+      const copy = { ...prev };
+      delete copy[id];
+      return copy;
+    });
+    setTipo3mDataByProject((prev) => {
+      const copy = { ...prev };
+      delete copy[id];
+      return copy;
+    });
     if (activeControlledProjectId === id) {
       const remaining = controlledProjects.filter((p) => p.id !== id);
       if (remaining.length > 0) {
@@ -669,11 +772,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         controlTipo1Data,
         updateControlTipo1Data,
         resetControlTipo1Data,
+        getProjectTipo1Data,
         activeSubTipo1,
         setActiveSubTipo1,
         controlTipo4DData,
         updateControlTipo4DData,
         resetControlTipo4DData,
+        getProjectTipo3mData,
         activeSubTipo4D,
         setActiveSubTipo4D,
         controlledProjects,
@@ -682,6 +787,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activeControlledProject,
         addControlledProject,
         deleteControlledProject,
+        projectWorkspaceMode,
+        setProjectWorkspaceMode,
       }}
     >
       {children}

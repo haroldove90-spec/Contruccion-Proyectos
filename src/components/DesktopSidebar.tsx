@@ -26,6 +26,7 @@ export const DesktopSidebar: React.FC = () => {
     activeModule,
     setActiveModule,
     lastSingleEntryImpact,
+    setProjectWorkspaceMode,
   } = useERP();
 
   const [collapsed, setCollapsed] = useState(false);
@@ -210,7 +211,10 @@ export const DesktopSidebar: React.FC = () => {
 
               {/* MODULE 1: Control_Tipo1_P0-00 */}
               <button
-                onClick={() => setActiveModule('control_tipo1')}
+                onClick={() => {
+                  setActiveModule('control_tipo1');
+                  setProjectWorkspaceMode('catalog');
+                }}
                 className={`w-full group flex items-center gap-3 p-3 rounded-2xl text-left transition-all cursor-pointer ${
                   activeModule === 'control_tipo1'
                     ? 'bg-amber-500 text-slate-950 font-black shadow-xs ring-1 ring-amber-600/20'
@@ -257,7 +261,10 @@ export const DesktopSidebar: React.FC = () => {
 
               {/* MODULE 2: Control_Tipo3M_P0-00 */}
               <button
-                onClick={() => setActiveModule('control_tipo4d')}
+                onClick={() => {
+                  setActiveModule('control_tipo4d');
+                  setProjectWorkspaceMode('catalog');
+                }}
                 className={`w-full group flex items-center gap-3 p-3 rounded-2xl text-left transition-all cursor-pointer ${
                   activeModule === 'control_tipo4d'
                     ? 'bg-indigo-600 text-white font-black shadow-xs ring-1 ring-indigo-700/20'

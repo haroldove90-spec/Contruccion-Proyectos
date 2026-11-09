@@ -477,7 +477,14 @@ export const SubControlGeneral4D: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {cg.pagosCliente.map((p) => (
+              {cg.pagosCliente.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-slate-400 font-medium">
+                    No hay pagos del cliente registrados. Haga clic en "+ Registrar Pago del Cliente" para comenzar a llenar la sección A.
+                  </td>
+                </tr>
+              ) : (
+                cg.pagosCliente.map((p) => (
                 <tr key={p.id} className="hover:bg-blue-50/40 transition-colors">
                   <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap">{p.fecha}</td>
                   <td className="py-2.5 px-4 font-medium text-slate-900">{p.observaciones}</td>
@@ -516,7 +523,7 @@ export const SubControlGeneral4D: React.FC = () => {
                     </div>
                   </td>
                 </tr>
-              ))}
+              )))}
             </tbody>
             <tfoot>
               <tr className="bg-blue-50/80 border-t-2 border-blue-300 font-bold font-mono text-slate-900">
@@ -590,49 +597,57 @@ export const SubControlGeneral4D: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {cg.manoObra.map((m) => (
-                <tr key={m.id} className="hover:bg-amber-50/40 transition-colors">
-                  <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap">{m.fecha}</td>
-                  <td className="py-2.5 px-3 font-medium text-slate-700 whitespace-nowrap">{m.firma}</td>
-                  <td className="py-2.5 px-4 font-medium text-slate-900">{m.contratistaConcepto}</td>
-                  <td className="py-2.5 px-3 text-right font-mono font-medium text-slate-800">
-                    ${m.pago.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                  </td>
-                  <td className="py-2.5 px-3 text-right font-mono text-slate-600">
-                    ${m.totalALaFecha.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                  </td>
-                  <td className="py-2.5 px-3 text-right font-mono text-slate-600">
-                    ${m.iva.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                  </td>
-                  <td className="py-2.5 px-3 text-right font-mono font-black text-amber-950 bg-amber-50/50">
-                    ${m.totalConIva.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                  </td>
-                  <td className="py-2.5 px-3 text-center no-print">
-                    <div className="flex items-center justify-center gap-1">
-                      <button
-                        onClick={() => handleOpenMoModal(m)}
-                        className="p-1 text-slate-400 hover:text-amber-600 rounded transition-colors"
-                        title="Editar registro"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() =>
-                          setDeleteConfirm({
-                            section: 'B',
-                            id: m.id,
-                            description: `${m.contratistaConcepto} (${m.firma})`,
-                          })
-                        }
-                        className="p-1 text-slate-400 hover:text-red-600 rounded transition-colors"
-                        title="Eliminar registro"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+              {cg.manoObra.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-8 text-center text-slate-400 font-medium">
+                    No hay registros de mano de obra. Haga clic en "+ Registrar Mano de Obra" para comenzar a llenar la sección B.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                cg.manoObra.map((m) => (
+                  <tr key={m.id} className="hover:bg-amber-50/40 transition-colors">
+                    <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap">{m.fecha}</td>
+                    <td className="py-2.5 px-3 font-medium text-slate-700 whitespace-nowrap">{m.firma}</td>
+                    <td className="py-2.5 px-4 font-medium text-slate-900">{m.contratistaConcepto}</td>
+                    <td className="py-2.5 px-3 text-right font-mono font-medium text-slate-800">
+                      ${m.pago.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono text-slate-600">
+                      ${m.totalALaFecha.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono text-slate-600">
+                      ${m.iva.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-black text-amber-950 bg-amber-50/50">
+                      ${m.totalConIva.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-2.5 px-3 text-center no-print">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => handleOpenMoModal(m)}
+                          className="p-1 text-slate-400 hover:text-amber-600 rounded transition-colors"
+                          title="Editar registro"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() =>
+                            setDeleteConfirm({
+                              section: 'B',
+                              id: m.id,
+                              description: `${m.contratistaConcepto} (${m.firma})`,
+                            })
+                          }
+                          className="p-1 text-slate-400 hover:text-red-600 rounded transition-colors"
+                          title="Eliminar registro"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
             <tfoot>
               <tr className="bg-amber-50/80 border-t-2 border-amber-300 font-bold font-mono text-slate-900">
@@ -708,46 +723,54 @@ export const SubControlGeneral4D: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {cg.materiales.map((m) => (
-                <tr key={m.id} className="hover:bg-emerald-50/40 transition-colors">
-                  <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap">{m.fecha}</td>
-                  <td className="py-2.5 px-4 font-semibold text-slate-900">{m.empresa}</td>
-                  <td className="py-2.5 px-3 font-mono font-bold text-emerald-700 whitespace-nowrap">{m.factura}</td>
-                  <td className="py-2.5 px-3 text-right font-mono font-medium text-slate-800">
-                    ${m.pagoSinIva.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                  </td>
-                  <td className="py-2.5 px-3 text-right font-mono text-slate-600">
-                    ${m.iva.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                  </td>
-                  <td className="py-2.5 px-3 text-right font-mono font-black text-emerald-950 bg-emerald-50/50">
-                    ${m.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                  </td>
-                  <td className="py-2.5 px-3 text-center no-print">
-                    <div className="flex items-center justify-center gap-1">
-                      <button
-                        onClick={() => handleOpenMatModal(m)}
-                        className="p-1 text-slate-400 hover:text-emerald-600 rounded transition-colors"
-                        title="Editar registro"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() =>
-                          setDeleteConfirm({
-                            section: 'C',
-                            id: m.id,
-                            description: `${m.empresa} (${m.factura})`,
-                          })
-                        }
-                        className="p-1 text-slate-400 hover:text-red-600 rounded transition-colors"
-                        title="Eliminar registro"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+              {cg.materiales.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-slate-400 font-medium">
+                    No hay gastos de materiales registrados. Haga clic en "+ Registrar Material" para comenzar a llenar la sección C.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                cg.materiales.map((m) => (
+                  <tr key={m.id} className="hover:bg-emerald-50/40 transition-colors">
+                    <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap">{m.fecha}</td>
+                    <td className="py-2.5 px-4 font-semibold text-slate-900">{m.empresa}</td>
+                    <td className="py-2.5 px-3 font-mono font-bold text-emerald-700 whitespace-nowrap">{m.factura}</td>
+                    <td className="py-2.5 px-3 text-right font-mono font-medium text-slate-800">
+                      ${m.pagoSinIva.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono text-slate-600">
+                      ${m.iva.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono font-black text-emerald-950 bg-emerald-50/50">
+                      ${m.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-2.5 px-3 text-center no-print">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => handleOpenMatModal(m)}
+                          className="p-1 text-slate-400 hover:text-emerald-600 rounded transition-colors"
+                          title="Editar registro"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() =>
+                            setDeleteConfirm({
+                              section: 'C',
+                              id: m.id,
+                              description: `${m.empresa} (${m.factura})`,
+                            })
+                          }
+                          className="p-1 text-slate-400 hover:text-red-600 rounded transition-colors"
+                          title="Eliminar registro"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
             <tfoot>
               <tr className="bg-emerald-50/80 border-t-2 border-emerald-300 font-bold font-mono text-slate-900">

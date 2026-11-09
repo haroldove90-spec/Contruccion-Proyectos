@@ -297,45 +297,53 @@ export const SubPresupuestoAditivas: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredList.map((item) => (
-                <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
-                  <td className="py-3 px-4 font-mono text-slate-600">{item.fecha}</td>
-                  <td className="py-3 px-4 font-mono font-bold text-amber-700">{item.numero}</td>
-                  <td className="py-3 px-4 font-medium text-slate-800 max-w-md">{item.concepto}</td>
-                  <td className="py-3 px-4 font-mono text-slate-600">{item.comprobante}</td>
-                  <td className="py-3 px-4 text-right font-mono text-slate-700">
-                    ${item.cantSinIva.toLocaleString('es-MX')}
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono text-slate-500">
-                    ${item.iva.toLocaleString('es-MX')}
-                  </td>
-                  <td
-                    className={`py-3 px-4 text-right font-mono font-bold ${
-                      activeTab === 'aditivas' ? 'text-emerald-700' : 'text-red-700'
-                    }`}
-                  >
-                    ${item.total.toLocaleString('es-MX')}
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      <button
-                        onClick={() => handleOpenEdit(item)}
-                        className="p-1 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
-                        title="Editar"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(item.id, item.tipo)}
-                        className="p-1 text-slate-400 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
-                        title="Eliminar"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+              {filteredList.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-8 text-center text-slate-400 font-medium">
+                    No hay {activeTab === 'aditivas' ? 'aditivas' : 'deductivas'} registradas. Presione "+ Registrar {activeTab === 'aditivas' ? 'Aditiva' : 'Deductiva'}" para capturar la primera.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredList.map((item) => (
+                  <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="py-3 px-4 font-mono text-slate-600">{item.fecha}</td>
+                    <td className="py-3 px-4 font-mono font-bold text-amber-700">{item.numero}</td>
+                    <td className="py-3 px-4 font-medium text-slate-800 max-w-md">{item.concepto}</td>
+                    <td className="py-3 px-4 font-mono text-slate-600">{item.comprobante}</td>
+                    <td className="py-3 px-4 text-right font-mono text-slate-700">
+                      ${item.cantSinIva.toLocaleString('es-MX')}
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono text-slate-500">
+                      ${item.iva.toLocaleString('es-MX')}
+                    </td>
+                    <td
+                      className={`py-3 px-4 text-right font-mono font-bold ${
+                        activeTab === 'aditivas' ? 'text-emerald-700' : 'text-red-700'
+                      }`}
+                    >
+                      ${item.total.toLocaleString('es-MX')}
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => handleOpenEdit(item)}
+                          className="p-1 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
+                          title="Editar"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(item.id, item.tipo)}
+                          className="p-1 text-slate-400 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
+                          title="Eliminar"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
             <tfoot className="bg-slate-50 border-t-2 border-slate-200 font-bold text-xs">
               <tr>

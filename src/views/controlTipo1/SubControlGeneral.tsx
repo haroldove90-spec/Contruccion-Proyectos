@@ -423,45 +423,53 @@ export const SubControlGeneral: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredPagos.map((pago) => (
-                <tr key={pago.id} className="hover:bg-slate-50/70 transition-colors">
-                  <td className="py-3 px-4 font-mono text-slate-600 font-medium">{pago.fecha}</td>
-                  <td className="py-3 px-4 font-bold text-slate-900">{pago.estimacion}</td>
-                  <td className="py-3 px-4 text-slate-600 max-w-xs">{pago.observaciones}</td>
-                  <td className="py-3 px-4">
-                    <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700">
-                      {pago.tipoPago}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono text-slate-700">
-                    ${pago.pagoSinIva.toLocaleString('es-MX')}
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono text-slate-500">
-                    ${pago.iva.toLocaleString('es-MX')}
-                  </td>
-                  <td className="py-3 px-4 text-right font-mono font-bold text-emerald-700">
-                    ${pago.total.toLocaleString('es-MX')}
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      <button
-                        onClick={() => handleOpenEditPayment(pago)}
-                        className="p-1 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
-                        title="Editar pago"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDeletePayment(pago.id)}
-                        className="p-1 text-slate-400 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
-                        title="Eliminar pago"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+              {filteredPagos.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-8 text-center text-slate-400 font-medium">
+                    No hay pagos del cliente registrados para esta obra. Haga clic en "+ Registrar Pago del Cliente" para comenzar la captura.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredPagos.map((pago) => (
+                  <tr key={pago.id} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="py-3 px-4 font-mono text-slate-600 font-medium">{pago.fecha}</td>
+                    <td className="py-3 px-4 font-bold text-slate-900">{pago.estimacion}</td>
+                    <td className="py-3 px-4 text-slate-600 max-w-xs">{pago.observaciones}</td>
+                    <td className="py-3 px-4">
+                      <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700">
+                        {pago.tipoPago}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono text-slate-700">
+                      ${pago.pagoSinIva.toLocaleString('es-MX')}
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono text-slate-500">
+                      ${pago.iva.toLocaleString('es-MX')}
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono font-bold text-emerald-700">
+                      ${pago.total.toLocaleString('es-MX')}
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => handleOpenEditPayment(pago)}
+                          className="p-1 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
+                          title="Editar pago"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeletePayment(pago.id)}
+                          className="p-1 text-slate-400 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
+                          title="Eliminar pago"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
             <tfoot className="bg-slate-50 border-t-2 border-slate-200 font-bold text-xs">
               <tr>

@@ -179,3 +179,16 @@ export const INITIAL_CONTROL_TIPO4D_DATA: ControlTipo4DStore = {
     },
   ],
 };
+
+export const createEmptyControlTipo4DData = (projectName: string = ''): ControlTipo4DStore => ({
+  controlGeneral: {
+    diseno: projectName ? `CONTROL DE DISEÑO Y OBRA - ${projectName.toUpperCase()}` : '',
+    noHoja: '01 / 01',
+    nota: 'Favor de usar letra legible y de molde.',
+    pagosCliente: [],
+    manoObra: [],
+    materiales: [],
+  },
+  bitacora: [],
+  materialesCliente: [],
+});

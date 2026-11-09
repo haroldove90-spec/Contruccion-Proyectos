@@ -281,8 +281,19 @@ export const SubBitacoraObservaciones: React.FC = () => {
 
         <div className="divide-y divide-slate-100">
           {filteredBitacora.length === 0 ? (
-            <div className="p-8 text-center text-slate-400 italic text-xs">
-              No se encontraron anotaciones en la bitácora con los filtros seleccionados.
+            <div className="p-10 text-center text-slate-400 text-xs space-y-3">
+              <BookOpen className="w-10 h-10 text-purple-300 mx-auto" />
+              <div className="font-bold text-slate-700 text-sm">Bitácora de Observaciones Vacía</div>
+              <p className="max-w-md mx-auto text-slate-500">
+                No hay anotaciones registradas en la bitácora de este proyecto. Haga clic en "+ Nueva Anotación" para registrar especificaciones técnicas o acuerdos.
+              </p>
+              <button
+                onClick={handleOpenNew}
+                className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl shadow-xs cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Registrar Primera Anotación</span>
+              </button>
             </div>
           ) : (
             filteredBitacora.map((entry, index) => {

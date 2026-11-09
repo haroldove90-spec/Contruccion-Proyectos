@@ -26,10 +26,10 @@ export const ControlTipo4DMainView: React.FC = () => {
     activeControlledProject,
     setActiveControlledProjectId,
     controlTipo4DData,
+    projectWorkspaceMode,
+    setProjectWorkspaceMode,
   } = useERP();
 
-  // Mode: 'catalog' (shows project history) or 'workspace' (submodules filling & report)
-  const [viewMode, setViewMode] = useState<'catalog' | 'workspace'>('catalog');
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showUnifiedModal, setShowUnifiedModal] = useState(false);
 
@@ -67,7 +67,7 @@ export const ControlTipo4DMainView: React.FC = () => {
   const CurrentIcon = currentSub.icon;
 
   // Catalog Mode: Shows project history for Tipo 3M
-  if (viewMode === 'catalog') {
+  if (projectWorkspaceMode === 'catalog') {
     return (
       <div className="space-y-4">
         <ProjectsCatalogView
@@ -76,7 +76,7 @@ export const ControlTipo4DMainView: React.FC = () => {
           subtitleOverride="Catálogo de proyectos Tipo 3M (TIR = A - B - C). Haga clic en 'Abrir Submódulos' para llenar el Control General TIR, Bitácora y Materiales compras de cliente, o genere su reporte unificado."
           onSelectProject={(proj) => {
             setActiveControlledProjectId(proj.id);
-            setViewMode('workspace');
+            setProjectWorkspaceMode('workspace');
           }}
         />
       </div>
@@ -94,7 +94,7 @@ export const ControlTipo4DMainView: React.FC = () => {
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <button
-                onClick={() => setViewMode('catalog')}
+                onClick={() => setProjectWorkspaceMode('catalog')}
                 className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-800 hover:bg-slate-700 text-indigo-300 font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer"
                 title="Regresar a la lista de proyectos Tipo 3M"
               >
