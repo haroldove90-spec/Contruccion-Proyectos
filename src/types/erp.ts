@@ -1,4 +1,4 @@
-export type UserRole = 'socio' | 'admin' | 'residente' | 'compras' | 'proyectos';
+export type UserRole = 'cod';
 
 export interface RoleInfo {
   id: UserRole;
@@ -39,16 +39,39 @@ export interface Project {
 
 export type PaymentMethod = 'transferencia' | 'efectivo' | 'tarjeta';
 
+export interface IncomeRecord {
+  id: string;
+  folio: string;
+  date: string;
+  concept: string;
+  client: string;
+  projectId?: string;
+  projectName?: string;
+  companyId: string;
+  companyName: string;
+  accountId: string;
+  accountName: string;
+  estimationId?: string;
+  invoiceNumber: string;
+  subtotal: number; // Monto s/IVA
+  iva: number;      // IVA 16% calculado automáticamente
+  total: number;    // Total c/IVA
+  accountingSeatId?: string;
+  timestamp: number;
+}
+
 export interface Expense {
   id: string;
   folio: string;
   projectId: string;
   projectName: string;
+  companyId: string;
+  companyName: string;
   provider: string;
   category: string;
-  amount: number;
-  subtotal: number;
-  iva: number;
+  amount: number;   // Total c/IVA
+  subtotal: number; // Monto s/IVA
+  iva: number;      // IVA 16%
   date: string;
   accountId: string;
   accountName: string;
@@ -63,23 +86,29 @@ export interface Expense {
 export interface BankAccount {
   id: string;
   bankName: string;
+  bankShortName: string;
   accountNumber: string;
   accountType: 'banco' | 'efectivo' | 'tarjeta';
   companyId: string;
   currency: string;
+  initialBalance: number;
   currentBalance: number;
 }
 
 export interface BankMovement {
   id: string;
   accountId: string;
+  companyId: string;
   date: string;
-  type: 'ingreso' | 'egreso' | 'transferencia';
+  type: 'ingreso' | 'egreso' | 'transferencia_entrada' | 'transferencia_salida';
   amount: number;
+  subtotal?: number;
+  iva?: number;
   concept: string;
   reference: string;
   projectId?: string;
   status: 'conciliado' | 'pendiente';
+  timestamp: number;
 }
 
 export interface AccountPayable {
@@ -137,6 +166,7 @@ export interface AccountingSeat {
   date: string;
   concept: string;
   reference: string;
+  companyId?: string;
   projectId?: string;
   lines: AccountingSeatLine[];
 }
@@ -146,7 +176,13 @@ export interface WhatsAppMessage {
   sender: 'user' | 'bot';
   text: string;
   timestamp: string;
-  image?: string;
+  ticketPreview?: {
+    title: string;
+    provider: string;
+    folio: string;
+    amount: number;
+    category: string;
+  };
   receiptData?: {
     provider: string;
     amount: number;
@@ -155,6 +191,7 @@ export interface WhatsAppMessage {
     date: string;
     category: string;
     projectName: string;
+    companyName: string;
     accountName: string;
     impacts: {
       costCenter: string;

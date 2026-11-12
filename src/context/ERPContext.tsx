@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import {
   UserRole,
   Project,
   BankAccount,
+  IncomeRecord,
   Expense,
   AccountPayable,
   AccountReceivable,
@@ -15,7 +16,9 @@ import {
   INITIAL_COMPANIES,
   INITIAL_PROJECTS,
   INITIAL_ACCOUNTS,
+  INITIAL_INCOMES,
   INITIAL_EXPENSES,
+  INITIAL_MOVEMENTS,
   INITIAL_PAYABLES,
   INITIAL_RECEIVABLES,
   INITIAL_ESTIMATIONS,
@@ -41,19 +44,45 @@ export type SubmoduleTipo4DKey =
   | 'bitacora_observaciones'
   | 'materiales_cliente_4d';
 
-interface AddExpenseParams {
-  projectId: string;
+export interface AddIncomeParams {
+  subtotal: number; // Monto s/IVA (el sistema calcula automáticamente 16% IVA y Total c/IVA)
+  companyId: string; // S.A. facturadora
+  accountId: string; // Cuenta de depósito
+  projectId?: string;
+  estimationId?: string;
+  client: string;
+  concept: string;
+  invoiceNumber?: string;
+  date?: string;
+}
+
+export interface AddExpenseParams {
+  projectId: string; // Obra (Centro de Costos)
+  companyId: string; // S.A. pagadora
+  accountId: string; // Cuenta de origen
   provider: string;
   category: string;
-  amount: number;
+  amount: number; // Total c/IVA
   subtotal: number;
   iva: number;
   date: string;
-  accountId: string;
   paymentMethod: Expense['paymentMethod'];
   invoiceFolio: string;
   capturedVia: 'whatsapp' | 'manual';
   notes?: string;
+}
+
+export interface LastSingleEntryImpact {
+  kind: 'egreso' | 'ingreso';
+  expense?: Expense;
+  income?: IncomeRecord;
+  accountingSeat: AccountingSeat;
+  impactSummary: {
+    costCenter: string;
+    treasury: string;
+    payables: string;
+    accounting: string;
+  };
 }
 
 interface ERPContextType {
@@ -66,14 +95,26 @@ interface ERPContextType {
   companies: Company[];
   projects: Project[];
   accounts: BankAccount[];
+  incomes: IncomeRecord[];
   expenses: Expense[];
   payables: AccountPayable[];
   receivables: AccountReceivable[];
   estimations: Estimation[];
   accountingSeats: AccountingSeat[];
   bankMovements: BankMovement[];
-  
-  // Single Entry Load Action (Principio de Carga Única)
+
+  // Single Entry Load Actions (Principio de Carga Única)
+  registerSingleEntryIncome: (params: AddIncomeParams) => {
+    income: IncomeRecord;
+    accountingSeat: AccountingSeat;
+    impactSummary: {
+      costCenter: string;
+      treasury: string;
+      payables: string;
+      accounting: string;
+    };
+  };
+
   registerSingleEntryExpense: (params: AddExpenseParams) => {
     expense: Expense;
     accountingSeat: AccountingSeat;
@@ -93,19 +134,17 @@ interface ERPContextType {
     advancePercent: number;
     grossAmount: number;
   }) => void;
-  collectEstimationPayment: (estimationId: string, accountId: string) => void;
+  collectEstimationPayment: (
+    estimationId: string,
+    accountId: string,
+    companyId?: string,
+    subtotalOverride?: number
+  ) => void;
   transferBetweenAccounts: (sourceAccId: string, destAccId: string, amount: number, concept: string) => void;
   resetAllData: () => void;
-  lastSingleEntryImpact: {
-    expense: Expense;
-    accountingSeat: AccountingSeat;
-    impactSummary: {
-      costCenter: string;
-      treasury: string;
-      payables: string;
-      accounting: string;
-    };
-  } | null;
+  lastSingleEntryImpact: LastSingleEntryImpact | null;
+  clearLastImpact: () => void;
+
   controlTipo1Data: ControlTipo1Store;
   updateControlTipo1Data: (updaterOrPartial: Partial<ControlTipo1Store> | ((prev: ControlTipo1Store) => ControlTipo1Store)) => void;
   resetControlTipo1Data: () => void;
@@ -128,89 +167,139 @@ interface ERPContextType {
   deleteControlledProject: (id: string) => void;
   projectWorkspaceMode: 'catalog' | 'workspace';
   setProjectWorkspaceMode: (mode: 'catalog' | 'workspace') => void;
-
-  clearLastImpact: () => void;
 }
 
 const ERPContext = createContext<ERPContextType | undefined>(undefined);
 
+const SCHEMA_VERSION_KEY = 'pc_erp_schema_v2';
+
+function readStored<T>(key: string, fallback: T): T {
+  if (localStorage.getItem(SCHEMA_VERSION_KEY) !== '2') {
+    return fallback;
+  }
+  const saved = localStorage.getItem(key);
+  if (!saved) return fallback;
+  try {
+    return JSON.parse(saved) as T;
+  } catch {
+    return fallback;
+  }
+}
+
 export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentRole, setCurrentRoleState] = useState<UserRole | null>(() => {
     const saved = localStorage.getItem('pc_erp_role');
-    return (saved as UserRole) || null;
+    if (saved === 'null') return null;
+    return 'cod';
   });
 
   const [activeCompanyId, setActiveCompanyId] = useState<string>('ALL');
-  const [activeModule, setActiveModule] = useState<string>('centros_costos');
+  const [activeModule, setActiveModule] = useState<string>('cod_resumen');
 
   const [companies] = useState<Company[]>(INITIAL_COMPANIES);
 
-  const [projects, setProjects] = useState<Project[]>(() => {
-    const saved = localStorage.getItem('pc_erp_projects');
-    return saved ? JSON.parse(saved) : INITIAL_PROJECTS;
-  });
+  const [projects, setProjects] = useState<Project[]>(() =>
+    readStored<Project[]>('pc_erp_v2_projects', INITIAL_PROJECTS)
+  );
 
-  const [accounts, setAccounts] = useState<BankAccount[]>(() => {
-    const saved = localStorage.getItem('pc_erp_accounts');
-    return saved ? JSON.parse(saved) : INITIAL_ACCOUNTS;
-  });
+  const [baseAccounts, setBaseAccounts] = useState<BankAccount[]>(() =>
+    readStored<BankAccount[]>('pc_erp_v2_accounts', INITIAL_ACCOUNTS)
+  );
 
-  const [expenses, setExpenses] = useState<Expense[]>(() => {
-    const saved = localStorage.getItem('pc_erp_expenses');
-    return saved ? JSON.parse(saved) : INITIAL_EXPENSES;
-  });
+  const [incomes, setIncomes] = useState<IncomeRecord[]>(() =>
+    readStored<IncomeRecord[]>('pc_erp_v2_incomes', INITIAL_INCOMES)
+  );
 
-  const [payables, setPayables] = useState<AccountPayable[]>(() => {
-    const saved = localStorage.getItem('pc_erp_payables');
-    return saved ? JSON.parse(saved) : INITIAL_PAYABLES;
-  });
+  const [expenses, setExpenses] = useState<Expense[]>(() =>
+    readStored<Expense[]>('pc_erp_v2_expenses', INITIAL_EXPENSES)
+  );
 
-  const [receivables, setReceivables] = useState<AccountReceivable[]>(() => {
-    const saved = localStorage.getItem('pc_erp_receivables');
-    return saved ? JSON.parse(saved) : INITIAL_RECEIVABLES;
-  });
+  const [bankMovements, setBankMovements] = useState<BankMovement[]>(() =>
+    readStored<BankMovement[]>('pc_erp_v2_movements', INITIAL_MOVEMENTS)
+  );
 
-  const [estimations, setEstimations] = useState<Estimation[]>(() => {
-    const saved = localStorage.getItem('pc_erp_estimations');
-    return saved ? JSON.parse(saved) : INITIAL_ESTIMATIONS;
-  });
+  const [payables, setPayables] = useState<AccountPayable[]>(() =>
+    readStored<AccountPayable[]>('pc_erp_v2_payables', INITIAL_PAYABLES)
+  );
 
-  const [accountingSeats, setAccountingSeats] = useState<AccountingSeat[]>(() => {
-    const saved = localStorage.getItem('pc_erp_seats');
-    return saved ? JSON.parse(saved) : INITIAL_SEATS;
-  });
+  const [receivables, setReceivables] = useState<AccountReceivable[]>(() =>
+    readStored<AccountReceivable[]>('pc_erp_v2_receivables', INITIAL_RECEIVABLES)
+  );
 
-  const [bankMovements, setBankMovements] = useState<BankMovement[]>([]);
+  const [estimations, setEstimations] = useState<Estimation[]>(() =>
+    readStored<Estimation[]>('pc_erp_v2_estimations', INITIAL_ESTIMATIONS)
+  );
 
-  const [lastSingleEntryImpact, setLastSingleEntryImpact] = useState<ERPContextType['lastSingleEntryImpact']>(null);
+  const [accountingSeats, setAccountingSeats] = useState<AccountingSeat[]>(() =>
+    readStored<AccountingSeat[]>('pc_erp_v2_seats', INITIAL_SEATS)
+  );
 
-  // Sync to local storage
+  const [lastSingleEntryImpact, setLastSingleEntryImpact] = useState<LastSingleEntryImpact | null>(null);
+
+  // Compute real-time bank balances automatically from initialBalance + inflows - outflows
+  const accounts = useMemo<BankAccount[]>(() => {
+    return baseAccounts.map((acc) => {
+      const inflows = bankMovements
+        .filter(
+          (m) =>
+            m.accountId === acc.id &&
+            (m.type === 'ingreso' || m.type === 'transferencia_entrada')
+        )
+        .reduce((sum, m) => sum + m.amount, 0);
+      const outflows = bankMovements
+        .filter(
+          (m) =>
+            m.accountId === acc.id &&
+            (m.type === 'egreso' || m.type === 'transferencia_salida')
+        )
+        .reduce((sum, m) => sum + m.amount, 0);
+
+      return {
+        ...acc,
+        currentBalance: Number((acc.initialBalance + inflows - outflows).toFixed(2)),
+      };
+    });
+  }, [baseAccounts, bankMovements]);
+
+  // Mark schema v2 ready and sync to localStorage
   useEffect(() => {
-    localStorage.setItem('pc_erp_projects', JSON.stringify(projects));
+    localStorage.setItem(SCHEMA_VERSION_KEY, '2');
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('pc_erp_v2_projects', JSON.stringify(projects));
   }, [projects]);
 
   useEffect(() => {
-    localStorage.setItem('pc_erp_accounts', JSON.stringify(accounts));
-  }, [accounts]);
+    localStorage.setItem('pc_erp_v2_accounts', JSON.stringify(baseAccounts));
+  }, [baseAccounts]);
 
   useEffect(() => {
-    localStorage.setItem('pc_erp_expenses', JSON.stringify(expenses));
+    localStorage.setItem('pc_erp_v2_incomes', JSON.stringify(incomes));
+  }, [incomes]);
+
+  useEffect(() => {
+    localStorage.setItem('pc_erp_v2_expenses', JSON.stringify(expenses));
   }, [expenses]);
 
   useEffect(() => {
-    localStorage.setItem('pc_erp_payables', JSON.stringify(payables));
+    localStorage.setItem('pc_erp_v2_movements', JSON.stringify(bankMovements));
+  }, [bankMovements]);
+
+  useEffect(() => {
+    localStorage.setItem('pc_erp_v2_payables', JSON.stringify(payables));
   }, [payables]);
 
   useEffect(() => {
-    localStorage.setItem('pc_erp_receivables', JSON.stringify(receivables));
+    localStorage.setItem('pc_erp_v2_receivables', JSON.stringify(receivables));
   }, [receivables]);
 
   useEffect(() => {
-    localStorage.setItem('pc_erp_estimations', JSON.stringify(estimations));
+    localStorage.setItem('pc_erp_v2_estimations', JSON.stringify(estimations));
   }, [estimations]);
 
   useEffect(() => {
-    localStorage.setItem('pc_erp_seats', JSON.stringify(accountingSeats));
+    localStorage.setItem('pc_erp_v2_seats', JSON.stringify(accountingSeats));
   }, [accountingSeats]);
 
   const [controlledProjects, setControlledProjects] = useState<ControlledProject[]>(() => {
@@ -223,7 +312,6 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return saved || 'proj-p0-00';
   });
 
-  // Per-project data dictionary for Control Tipo 1
   const [tipo1DataByProject, setTipo1DataByProject] = useState<Record<string, ControlTipo1Store>>(() => {
     const saved = localStorage.getItem('pc_erp_tipo1_by_project');
     if (saved) {
@@ -240,7 +328,6 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   });
 
-  // Per-project data dictionary for Control Tipo 3M
   const [tipo3mDataByProject, setTipo3mDataByProject] = useState<Record<string, ControlTipo4DStore>>(() => {
     const saved = localStorage.getItem('pc_erp_tipo3m_by_project');
     if (saved) {
@@ -379,7 +466,6 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: newId,
     };
 
-    // When creating a new project, initialize completely EMPTY submodules forms:
     if (newProj.controlType === 'tipo1') {
       const emptyStore = createEmptyControlTipo1Data(newProj.initialBudget);
       setTipo1DataByProject((prev) => ({
@@ -424,43 +510,206 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentRoleState(role);
     if (role) {
       localStorage.setItem('pc_erp_role', role);
-      // Set appropriate initial view according to role
-      if (role === 'socio') setActiveModule('reportes_financieros');
-      else if (role === 'admin') setActiveModule('tesoreria');
-      else if (role === 'residente') setActiveModule('programa_obra');
-      else if (role === 'compras') setActiveModule('whatsapp_ocr');
-      else if (role === 'proyectos') setActiveModule('control_tipo1');
+      setActiveModule('cod_resumen');
     } else {
-      localStorage.removeItem('pc_erp_role');
+      localStorage.setItem('pc_erp_role', 'null');
     }
   };
 
   /**
-   * 🔄 PRINCIPIO DE CARGA ÚNICA
-   * Un solo registro de gasto afecta simultáneamente:
+   * 🔄 PRINCIPIO DE CARGA ÚNICA — MÓDULO DE INGRESOS
+   * Entrada: Monto s/IVA, S.A. facturadora y Cuenta de Depósito.
+   * Cálculo automático: IVA 16% y Total c/IVA.
+   * Afectación simultánea:
+   * 1. Registro de Ingreso fiscal
+   * 2. Tesorería (suma Total c/IVA a la Cuenta de Depósito y crea movimiento)
+   * 3. Obra / Estimación / CXC (si está vinculado)
+   * 4. Contabilidad (Póliza automática de ingreso con IVA trasladado)
+   */
+  const registerSingleEntryIncome = (params: AddIncomeParams) => {
+    const targetCompany = companies.find((c) => c.id === params.companyId) || companies[0];
+    const targetAccount = accounts.find((a) => a.id === params.accountId) || accounts[0];
+    const targetProject = params.projectId
+      ? projects.find((p) => p.id === params.projectId)
+      : undefined;
+
+    const subtotal = Number(Number(params.subtotal).toFixed(2));
+    const iva = Number((subtotal * 0.16).toFixed(2));
+    const total = Number((subtotal + iva).toFixed(2));
+
+    const now = Date.now();
+    const dateStr = params.date || new Date().toISOString().split('T')[0];
+    const incId = `inc-${now.toString().slice(-6)}`;
+    const folio = `COB-${new Date().getFullYear()}-${Math.floor(Math.random() * 900 + 100)}`;
+    const seatId = `AS-${new Date().getFullYear()}-${Math.floor(Math.random() * 900 + 100)}`;
+    const invoiceNumber =
+      params.invoiceNumber?.trim() ||
+      `FAC-${targetCompany.id}-${Math.floor(Math.random() * 9000 + 1000)}`;
+
+    const newIncome: IncomeRecord = {
+      id: incId,
+      folio,
+      date: dateStr,
+      concept: params.concept,
+      client: params.client,
+      projectId: targetProject?.id,
+      projectName: targetProject?.name,
+      companyId: targetCompany.id,
+      companyName: targetCompany.shortName,
+      accountId: targetAccount.id,
+      accountName: targetAccount.bankName,
+      estimationId: params.estimationId,
+      invoiceNumber,
+      subtotal,
+      iva,
+      total,
+      accountingSeatId: seatId,
+      timestamp: now,
+    };
+
+    // 1. Registrar Ingreso
+    setIncomes((prev) => [newIncome, ...prev]);
+
+    // 2. Tesorería: crear movimiento de ingreso (el saldo del banco se recalcula automáticamente)
+    const newMovement: BankMovement = {
+      id: `mov-ing-${now}`,
+      accountId: targetAccount.id,
+      companyId: targetCompany.id,
+      date: dateStr,
+      type: 'ingreso',
+      amount: total,
+      subtotal,
+      iva,
+      concept: `${params.concept} (${targetCompany.shortName})`,
+      reference: invoiceNumber,
+      projectId: targetProject?.id,
+      status: 'conciliado',
+      timestamp: now,
+    };
+    setBankMovements((prev) => [newMovement, ...prev]);
+
+    // 3. Obra / Estimación / CXC
+    if (params.estimationId) {
+      const matchedEst = estimations.find((e) => e.id === params.estimationId);
+      setEstimations((prev) =>
+        prev.map((e) => (e.id === params.estimationId ? { ...e, status: 'cobrada' } : e))
+      );
+      if (matchedEst) {
+        setReceivables((prev) =>
+          prev.map((r) =>
+            r.projectId === matchedEst.projectId && r.estimationNumber === matchedEst.estimationNumber
+              ? { ...r, balance: 0, status: 'cobrado' }
+              : r
+          )
+        );
+      }
+    }
+
+    if (targetProject) {
+      setProjects((prev) =>
+        prev.map((p) => {
+          if (p.id !== targetProject.id) return p;
+          return {
+            ...p,
+            collected: Number((p.collected + total).toFixed(2)),
+            billed: params.estimationId ? p.billed : Number((p.billed + total).toFixed(2)),
+          };
+        })
+      );
+    }
+
+    // 4. Póliza contable de Ingreso
+    const newSeat: AccountingSeat = {
+      id: seatId,
+      seatNumber: `POL-ING-${seatId.split('-')[2]}`,
+      date: dateStr,
+      concept: `Ingreso cobrado [${targetCompany.shortName}] - ${params.concept}`,
+      reference: invoiceNumber,
+      companyId: targetCompany.id,
+      projectId: targetProject?.id,
+      lines: [
+        {
+          accountCode: targetAccount.accountType === 'efectivo' ? '101-01-CAJ' : '102-01-BAN',
+          accountName: targetAccount.bankName,
+          debit: total,
+          credit: 0,
+        },
+        {
+          accountCode: '400-01-ING',
+          accountName: `Ingresos Facturados - ${targetCompany.shortName}`,
+          debit: 0,
+          credit: subtotal,
+        },
+        {
+          accountCode: '208-01-IVA',
+          accountName: 'IVA Trasladado Cobrado (16%)',
+          debit: 0,
+          credit: iva,
+        },
+      ],
+    };
+    setAccountingSeats((prev) => [newSeat, ...prev]);
+
+    const impact: LastSingleEntryImpact = {
+      kind: 'ingreso',
+      income: newIncome,
+      accountingSeat: newSeat,
+      impactSummary: {
+        costCenter: targetProject
+          ? `+ $${total.toLocaleString('es-MX')} cobrado en ${targetProject.name}`
+          : `Ingreso directo facturado por ${targetCompany.shortName}`,
+        treasury: `+ $${total.toLocaleString('es-MX')} depositado en ${targetAccount.bankName}`,
+        payables: `CFDI ${invoiceNumber} · s/IVA $${subtotal.toLocaleString('es-MX')} + IVA $${iva.toLocaleString('es-MX')}`,
+        accounting: `Póliza ${newSeat.seatNumber} generada (D: Banco, H: Ingreso/IVA 16%)`,
+      },
+    };
+    setLastSingleEntryImpact(impact);
+
+    return {
+      income: newIncome,
+      accountingSeat: newSeat,
+      impactSummary: impact.impactSummary,
+    };
+  };
+
+  /**
+   * 🔄 PRINCIPIO DE CARGA ÚNICA — MÓDULO DE EGRESOS
+   * Ligado explícitamente a: Obra (Centro de Costos) + S.A. Pagadora + Cuenta de Origen.
+   * Afectación simultánea:
    * 1. Centros de Costos (suma al gasto acumulado de la obra)
-   * 2. Tesorería (disminuye saldo de la cuenta/efectivo o tarjeta y registra movimiento)
-   * 3. Cuentas por Pagar / Proveedores (registra el pasivo o comprobante liquidado)
+   * 2. Tesorería (resta de la Cuenta de Origen y registra movimiento)
+   * 3. Cuentas por Pagar / Proveedores (registra el comprobante liquidado bajo la S.A. pagadora)
    * 4. Contabilidad General (asiento contable automático con desglose IVA)
    */
   const registerSingleEntryExpense = (params: AddExpenseParams) => {
     const targetProject = projects.find((p) => p.id === params.projectId) || projects[0];
+    const targetCompany =
+      companies.find((c) => c.id === params.companyId) ||
+      companies.find((c) => c.id === targetProject.companyId) ||
+      companies[0];
     const targetAccount = accounts.find((a) => a.id === params.accountId) || accounts[0];
 
-    const expId = `exp-${Date.now().toString().slice(-5)}`;
-    const seatId = `AS-2026-${Math.floor(Math.random() * 900 + 100)}`;
+    const now = Date.now();
+    const expId = `exp-${now.toString().slice(-6)}`;
+    const seatId = `AS-${new Date().getFullYear()}-${Math.floor(Math.random() * 900 + 100)}`;
     const folio = `OC-${new Date().getFullYear()}-${Math.floor(Math.random() * 900 + 100)}`;
+
+    const totalAmount = Number(Number(params.amount).toFixed(2));
+    const subtotal = Number(Number(params.subtotal).toFixed(2));
+    const iva = Number(Number(params.iva).toFixed(2));
 
     const newExpense: Expense = {
       id: expId,
       folio,
       projectId: targetProject.id,
       projectName: targetProject.name,
+      companyId: targetCompany.id,
+      companyName: targetCompany.shortName,
       provider: params.provider,
       category: params.category,
-      amount: params.amount,
-      subtotal: params.subtotal,
-      iva: params.iva,
+      amount: totalAmount,
+      subtotal,
+      iva,
       date: params.date,
       accountId: targetAccount.id,
       accountName: targetAccount.bankName,
@@ -469,15 +718,16 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       capturedVia: params.capturedVia,
       notes: params.notes,
       accountingSeatId: seatId,
-      timestamp: Date.now(),
+      timestamp: now,
     };
 
     // 1. AFECTA CENTRO DE COSTOS (Suma al gasto y recalcula % financiero)
     setProjects((prev) =>
       prev.map((p) => {
         if (p.id === targetProject.id) {
-          const newSpent = p.spent + params.amount;
-          const newFinProgress = Number(((newSpent / p.initialBudget) * 100).toFixed(1));
+          const newSpent = Number((p.spent + totalAmount).toFixed(2));
+          const newFinProgress =
+            p.initialBudget > 0 ? Number(((newSpent / p.initialBudget) * 100).toFixed(1)) : 0;
           return {
             ...p,
             spent: newSpent,
@@ -488,91 +738,89 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
-    // 2. AFECTA TESORERÍA (Disminuye saldo y crea movimiento)
-    setAccounts((prev) =>
-      prev.map((acc) => {
-        if (acc.id === targetAccount.id) {
-          return {
-            ...acc,
-            currentBalance: acc.currentBalance - params.amount,
-          };
-        }
-        return acc;
-      })
-    );
-
+    // 2. AFECTA TESORERÍA (Crea movimiento de egreso — el saldo del banco se recalcula automáticamente)
     const newMovement: BankMovement = {
-      id: `mov-${Date.now()}`,
+      id: `mov-egr-${now}`,
       accountId: targetAccount.id,
+      companyId: targetCompany.id,
       date: params.date,
       type: 'egreso',
-      amount: params.amount,
-      concept: `Pago Gasto ${params.provider} - ${targetProject.name}`,
+      amount: totalAmount,
+      subtotal,
+      iva,
+      concept: `Pago ${params.provider} · ${targetProject.name} (${targetCompany.shortName})`,
       reference: newExpense.invoiceFolio,
       projectId: targetProject.id,
       status: 'conciliado',
+      timestamp: now,
     };
     setBankMovements((prev) => [newMovement, ...prev]);
 
-    // 3. AFECTA CUENTAS POR PAGAR (Registra comprobante)
+    // 3. AFECTA CUENTAS POR PAGAR (Registra comprobante liquidado con S.A. pagadora)
     const newPayable: AccountPayable = {
-      id: `cxp-${Date.now().toString().slice(-4)}`,
+      id: `cxp-${now.toString().slice(-5)}`,
       provider: params.provider,
       invoiceNumber: newExpense.invoiceFolio,
-      amount: params.amount,
-      balance: 0, // Inmediatamente cubierto por tesorería
+      amount: totalAmount,
+      balance: 0,
       dueDate: params.date,
-      companyId: targetProject.companyId,
+      companyId: targetCompany.id,
       projectId: targetProject.id,
       status: 'pagada',
     };
     setPayables((prev) => [newPayable, ...prev]);
 
-    // 4. AFECTA CONTABILIDAD GENERAL (Genera Asiento Contable Automático)
+    // 4. AFECTA CONTABILIDAD GENERAL
     const newSeat: AccountingSeat = {
       id: seatId,
       seatNumber: `POL-EGR-${seatId.split('-')[2]}`,
       date: params.date,
-      concept: `Registro único de compra [${params.category}] - ${params.provider} (${targetProject.name})`,
+      concept: `Egreso [${targetCompany.shortName}] ${params.category} - ${params.provider} (${targetProject.name})`,
       reference: newExpense.invoiceFolio,
+      companyId: targetCompany.id,
       projectId: targetProject.id,
       lines: [
         {
           accountCode: '500-01-OBR',
           accountName: `Costo Directo de Obra - ${targetProject.name}`,
-          debit: params.subtotal,
+          debit: subtotal,
           credit: 0,
         },
         {
           accountCode: '118-01-IVA',
-          accountName: 'IVA Acreditable en Operación',
-          debit: params.iva,
+          accountName: 'IVA Acreditable en Operación (16%)',
+          debit: iva,
           credit: 0,
         },
         {
           accountCode: targetAccount.accountType === 'efectivo' ? '101-01-CAJ' : '102-01-BAN',
-          accountName: targetAccount.bankName,
+          accountName: `${targetAccount.bankName} (${targetCompany.shortName})`,
           debit: 0,
-          credit: params.amount,
+          credit: totalAmount,
         },
       ],
     };
     setAccountingSeats((prev) => [newSeat, ...prev]);
     setExpenses((prev) => [newExpense, ...prev]);
 
-    const impact = {
+    const impact: LastSingleEntryImpact = {
+      kind: 'egreso',
       expense: newExpense,
       accountingSeat: newSeat,
       impactSummary: {
-        costCenter: `+ $${params.amount.toLocaleString('es-MX')} sumado a ${targetProject.name}`,
-        treasury: `- $${params.amount.toLocaleString('es-MX')} debitado de ${targetAccount.bankName}`,
+        costCenter: `+ $${totalAmount.toLocaleString('es-MX')} sumado a ${targetProject.name} (${targetCompany.shortName})`,
+        treasury: `- $${totalAmount.toLocaleString('es-MX')} debitado de ${targetAccount.bankName}`,
         payables: `Comprobante ${newExpense.invoiceFolio} de ${params.provider} liquidado`,
-        accounting: `Póliza ${newSeat.seatNumber} generada automáticamente (D: Obra/IVA, H: Tesorería)`,
+        accounting: `Póliza ${newSeat.seatNumber} generada (D: Obra/IVA, H: ${targetAccount.bankShortName})`,
       },
     };
 
     setLastSingleEntryImpact(impact);
-    return impact;
+    return {
+      expense: newExpense,
+      accountingSeat: newSeat,
+      impactSummary: impact.impactSummary,
+    };
   };
 
   const createProject = (
@@ -604,7 +852,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const proj = projects.find((p) => p.id === data.projectId);
     if (!proj) return;
 
-    const retention = data.grossAmount * 0.05; // 5% fondo de garantía
+    const retention = data.grossAmount * 0.05;
     const net = data.grossAmount - retention;
     const estCount = estimations.filter((e) => e.projectId === data.projectId).length + 1;
     const estNum = `EST-${estCount < 10 ? '0' + estCount : estCount}`;
@@ -629,12 +877,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setEstimations((prev) => [newEst, ...prev]);
 
-    // Update project billed amount
     setProjects((prev) =>
       prev.map((p) => (p.id === proj.id ? { ...p, billed: p.billed + net } : p))
     );
 
-    // Create Account Receivable
     const newReceivable: AccountReceivable = {
       id: `cxc-${Date.now()}`,
       client: proj.client,
@@ -650,48 +896,31 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setReceivables((prev) => [newReceivable, ...prev]);
   };
 
-  const collectEstimationPayment = (estimationId: string, accountId: string) => {
+  const collectEstimationPayment = (
+    estimationId: string,
+    accountId: string,
+    companyIdOverride?: string,
+    subtotalOverride?: number
+  ) => {
     const est = estimations.find((e) => e.id === estimationId);
-    const targetAccount = accounts.find((a) => a.id === accountId) || accounts[0];
     if (!est) return;
+    const proj = projects.find((p) => p.id === est.projectId);
+    const subtotalSinIva =
+      typeof subtotalOverride === 'number' && subtotalOverride > 0
+        ? subtotalOverride
+        : Number((est.netAmount / 1.16).toFixed(2));
 
-    // Update estimation status
-    setEstimations((prev) =>
-      prev.map((e) => (e.id === estimationId ? { ...e, status: 'cobrada' } : e))
-    );
-
-    // Update receivables
-    setReceivables((prev) =>
-      prev.map((r) =>
-        r.projectId === est.projectId && r.estimationNumber === est.estimationNumber
-          ? { ...r, balance: 0, status: 'cobrado' }
-          : r
-      )
-    );
-
-    // Deposit into bank account
-    setAccounts((prev) =>
-      prev.map((a) => (a.id === targetAccount.id ? { ...a, currentBalance: a.currentBalance + est.netAmount } : a))
-    );
-
-    // Update project collected
-    setProjects((prev) =>
-      prev.map((p) => (p.id === est.projectId ? { ...p, collected: p.collected + est.netAmount } : p))
-    );
-
-    // Add bank movement
-    const mov: BankMovement = {
-      id: `mov-${Date.now()}`,
-      accountId: targetAccount.id,
-      date: new Date().toISOString().split('T')[0],
-      type: 'ingreso',
-      amount: est.netAmount,
-      concept: `Cobro de ${est.estimationNumber} - ${est.projectName}`,
-      reference: est.invoiceNumber,
+    registerSingleEntryIncome({
+      subtotal: subtotalSinIva,
+      companyId: companyIdOverride || est.companyId,
+      accountId,
       projectId: est.projectId,
-      status: 'conciliado',
-    };
-    setBankMovements((prev) => [mov, ...prev]);
+      estimationId: est.id,
+      client: proj?.client || 'Cliente de Obra',
+      concept: `Cobro ${est.estimationNumber} - ${est.projectName}`,
+      invoiceNumber: est.invoiceNumber,
+      date: new Date().toISOString().split('T')[0],
+    });
   };
 
   const transferBetweenAccounts = (
@@ -700,43 +929,62 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     amount: number,
     concept: string
   ) => {
-    setAccounts((prev) =>
-      prev.map((a) => {
-        if (a.id === sourceAccId) return { ...a, currentBalance: a.currentBalance - amount };
-        if (a.id === destAccId) return { ...a, currentBalance: a.currentBalance + amount };
-        return a;
-      })
-    );
+    const sourceAcc = accounts.find((a) => a.id === sourceAccId);
+    const destAcc = accounts.find((a) => a.id === destAccId);
+    if (!sourceAcc || !destAcc || amount <= 0) return;
+
+    const now = Date.now();
+    const dateStr = new Date().toISOString().split('T')[0];
+    const ref = `TRF-${Math.floor(Math.random() * 9000 + 1000)}`;
 
     const movOut: BankMovement = {
-      id: `mov-${Date.now()}-1`,
-      accountId: sourceAccId,
-      date: new Date().toISOString().split('T')[0],
-      type: 'transferencia',
+      id: `mov-trf-out-${now}`,
+      accountId: sourceAcc.id,
+      companyId: sourceAcc.companyId,
+      date: dateStr,
+      type: 'transferencia_salida',
       amount,
-      concept: `Traspaso a otra cuenta: ${concept}`,
-      reference: `TRF-${Math.floor(Math.random() * 9000 + 1000)}`,
+      concept: `Traspaso enviado a ${destAcc.bankName}: ${concept}`,
+      reference: ref,
       status: 'conciliado',
+      timestamp: now,
     };
-    setBankMovements((prev) => [movOut, ...prev]);
+
+    const movIn: BankMovement = {
+      id: `mov-trf-in-${now}`,
+      accountId: destAcc.id,
+      companyId: destAcc.companyId,
+      date: dateStr,
+      type: 'transferencia_entrada',
+      amount,
+      concept: `Traspaso recibido de ${sourceAcc.bankName}: ${concept}`,
+      reference: ref,
+      status: 'conciliado',
+      timestamp: now + 1,
+    };
+
+    setBankMovements((prev) => [movIn, movOut, ...prev]);
   };
 
   const resetAllData = () => {
-    localStorage.removeItem('pc_erp_projects');
-    localStorage.removeItem('pc_erp_accounts');
-    localStorage.removeItem('pc_erp_expenses');
-    localStorage.removeItem('pc_erp_payables');
-    localStorage.removeItem('pc_erp_receivables');
-    localStorage.removeItem('pc_erp_estimations');
-    localStorage.removeItem('pc_erp_seats');
+    localStorage.removeItem('pc_erp_v2_projects');
+    localStorage.removeItem('pc_erp_v2_accounts');
+    localStorage.removeItem('pc_erp_v2_incomes');
+    localStorage.removeItem('pc_erp_v2_expenses');
+    localStorage.removeItem('pc_erp_v2_movements');
+    localStorage.removeItem('pc_erp_v2_payables');
+    localStorage.removeItem('pc_erp_v2_receivables');
+    localStorage.removeItem('pc_erp_v2_estimations');
+    localStorage.removeItem('pc_erp_v2_seats');
     setProjects(INITIAL_PROJECTS);
-    setAccounts(INITIAL_ACCOUNTS);
+    setBaseAccounts(INITIAL_ACCOUNTS);
+    setIncomes(INITIAL_INCOMES);
     setExpenses(INITIAL_EXPENSES);
+    setBankMovements(INITIAL_MOVEMENTS);
     setPayables(INITIAL_PAYABLES);
     setReceivables(INITIAL_RECEIVABLES);
     setEstimations(INITIAL_ESTIMATIONS);
     setAccountingSeats(INITIAL_SEATS);
-    setBankMovements([]);
     setLastSingleEntryImpact(null);
   };
 
@@ -754,12 +1002,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         companies,
         projects,
         accounts,
+        incomes,
         expenses,
         payables,
         receivables,
         estimations,
         accountingSeats,
         bankMovements,
+        registerSingleEntryIncome,
         registerSingleEntryExpense,
         createProject,
         updatePhysicalProgress,

@@ -1,116 +1,56 @@
 import React, { useState } from 'react';
 import { useERP } from '../context/ERPContext';
+import { useCOD } from '../context/CODContext';
 import { BrandLogo } from './BrandLogo';
 import { PWAInstallButton } from './PWAInstallButton';
 import { ExecutivePDFModal } from './ExecutivePDFModal';
-import { LogOut, ChevronDown, Building2, User, Printer } from 'lucide-react';
+import { LogOut, Building2, Printer } from 'lucide-react';
 import { UserRole } from '../types/erp';
 
 const ROLE_NAMES: Record<UserRole, { label: string; badgeColor: string }> = {
-  socio: { label: 'Socio Director', badgeColor: 'bg-slate-800 text-amber-400' },
-  admin: { label: 'Administración & Finanzas', badgeColor: 'bg-blue-900 text-blue-200' },
-  residente: { label: 'Residente de Obra', badgeColor: 'bg-amber-600 text-white' },
-  compras: { label: 'Compras & Proveedores', badgeColor: 'bg-emerald-700 text-white' },
-  proyectos: { label: 'Proyectos (Control de Obra & Diseño)', badgeColor: 'bg-purple-900 text-purple-200' },
+  cod: { label: 'COD', badgeColor: 'bg-slate-900 text-amber-400' },
 };
 
 export const InstitutionalHeader: React.FC<{ onToggleSidebar?: () => void }> = () => {
   const [showPDFModal, setShowPDFModal] = useState(false);
-  const {
-    currentRole,
-    setCurrentRole,
-    activeCompanyId,
-    setActiveCompanyId,
-    companies,
-  } = useERP();
+  const { currentRole, setCurrentRole } = useERP();
+  const { companies, selectedCompanyFilter, setSelectedCompanyFilter } = useCOD();
 
   const activeRoleData = currentRole ? ROLE_NAMES[currentRole] : null;
 
   return (
     <header className="sticky top-0 z-30 w-full bg-white border-b border-slate-200 shadow-2xs">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-3">
-        {/* Left: Brand Logo & Company Selector */}
+        {/* Left: Brand Logo & S.A. Filter */}
         <div className="flex items-center gap-3 sm:gap-6 min-w-0">
           <BrandLogo size="sm" showText={true} />
 
-          {/* S.A. Filter Selector */}
           <div className="hidden md:flex items-center gap-1.5 pl-4 border-l border-slate-200 text-xs">
             <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
             <select
-              value={activeCompanyId}
-              onChange={(e) => setActiveCompanyId(e.target.value)}
+              value={selectedCompanyFilter}
+              onChange={(e) => setSelectedCompanyFilter(e.target.value)}
               className="bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:outline-hidden focus:border-amber-500 cursor-pointer"
             >
-              <option value="ALL">🏢 Consolidado Grupo (3 S.A.)</option>
+              <option value="ALL">Consolidado Grupo (3 S.A.)</option>
               {companies.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.shortName} ({c.id})
+                  {c.name}
                 </option>
               ))}
             </select>
           </div>
         </div>
 
-        {/* Right: Active Role, PWA Install & Logout */}
+        {/* Right: Active COD Role, PDF, PWA Install & Logout */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          {/* Active Role Identifier with quick role switch dropdown */}
           {activeRoleData && (
-            <div className="relative group">
-              <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg transition-colors cursor-pointer text-xs font-semibold text-slate-800">
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    currentRole === 'socio'
-                      ? 'bg-amber-500'
-                      : currentRole === 'admin'
-                      ? 'bg-blue-600'
-                      : currentRole === 'residente'
-                      ? 'bg-amber-600'
-                      : currentRole === 'compras'
-                      ? 'bg-emerald-600'
-                      : 'bg-purple-600'
-                  }`}
-                />
-                <span className="hidden sm:inline font-bold text-slate-900">
-                  {activeRoleData.label}
-                </span>
-                <span className="sm:hidden font-bold text-slate-900">
-                  {currentRole === 'socio'
-                    ? 'Socio'
-                    : currentRole === 'admin'
-                    ? 'Admin'
-                    : currentRole === 'residente'
-                    ? 'Obra'
-                    : currentRole === 'compras'
-                    ? 'Compras'
-                    : 'Proyectos'}
-                </span>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
-              </div>
-
-              {/* Quick switch menu */}
-              <div className="absolute right-0 top-full mt-1 hidden group-hover:block w-52 bg-white rounded-xl shadow-lg border border-slate-200 py-1.5 z-40">
-                <div className="px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                  Cambiar de Rol
-                </div>
-                {(['socio', 'admin', 'residente', 'compras', 'proyectos'] as UserRole[]).map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => setCurrentRole(r)}
-                    className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between hover:bg-slate-50 cursor-pointer ${
-                      currentRole === r
-                        ? 'font-bold text-amber-600 bg-amber-50/50'
-                        : 'text-slate-700'
-                    }`}
-                  >
-                    <span>{ROLE_NAMES[r].label}</span>
-                    {currentRole === r && <span className="text-[10px] text-amber-600 font-bold">Activo</span>}
-                  </button>
-                ))}
-              </div>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold">
+              <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+              <span className="font-bold">{activeRoleData.label}</span>
             </div>
           )}
 
-          {/* PDF Dossier for Client */}
           <button
             onClick={() => setShowPDFModal(true)}
             title="Ver / Imprimir Ficha Técnica en PDF para el Cliente"
@@ -120,10 +60,8 @@ export const InstitutionalHeader: React.FC<{ onToggleSidebar?: () => void }> = (
             <span className="hidden sm:inline">PDF Cliente</span>
           </button>
 
-          {/* Quick PWA Install Button */}
           <PWAInstallButton compact={true} />
 
-          {/* Session Logout Button */}
           <button
             onClick={() => setCurrentRole(null)}
             title="Cerrar sesión y volver al selector de roles"
@@ -135,7 +73,6 @@ export const InstitutionalHeader: React.FC<{ onToggleSidebar?: () => void }> = (
         </div>
       </div>
 
-      {/* Modal Ficha Técnica en PDF */}
       <ExecutivePDFModal
         isOpen={showPDFModal}
         onClose={() => setShowPDFModal(false)}
