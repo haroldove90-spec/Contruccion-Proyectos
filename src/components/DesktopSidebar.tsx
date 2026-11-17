@@ -6,13 +6,14 @@ import {
   TrendingUp,
   Receipt,
   Landmark,
+  FolderCog,
   ChevronLeft,
   ChevronRight,
   Zap,
   ShieldCheck,
 } from 'lucide-react';
 
-interface CODModuleItem {
+interface CDOModuleItem {
   id: string;
   label: string;
   sublabel: string;
@@ -20,34 +21,41 @@ interface CODModuleItem {
   badge?: string;
 }
 
-const COD_MODULES: CODModuleItem[] = [
+const CDO_MODULES: CDOModuleItem[] = [
   {
-    id: 'cod_resumen',
+    id: 'cdo_resumen',
     label: 'Resumen',
     sublabel: 'Ingresos, Egresos y Flujo por S.A.',
     icon: PieChart,
     badge: 'Global',
   },
   {
-    id: 'cod_ingresos',
+    id: 'cdo_ingresos',
     label: 'Ingresos',
-    sublabel: 's/IVA + 16% IVA · S.A. y Banco',
+    sublabel: 's/IVA + 16% IVA · Cliente y Banco',
     icon: TrendingUp,
     badge: 'Cobros',
   },
   {
-    id: 'cod_egresos',
+    id: 'cdo_egresos',
     label: 'Egresos',
     sublabel: 'Obra + S.A. + Cuenta + WhatsApp OCR',
     icon: Receipt,
     badge: 'Gastos',
   },
   {
-    id: 'cod_bancos',
+    id: 'cdo_bancos',
     label: 'Control Bancario y Efectivo',
-    sublabel: 'Banorte, IXE, Banregio y Caja',
+    sublabel: 'Cuentas Bancarias (8+) y Cajas',
     icon: Landmark,
     badge: 'Tiempo Real',
+  },
+  {
+    id: 'cdo_catalogos',
+    label: 'Catálogos y Clientes',
+    sublabel: 'Clientes, Proyectos, S.A. y Conceptos',
+    icon: FolderCog,
+    badge: 'Control',
   },
 ];
 
@@ -66,10 +74,10 @@ export const DesktopSidebar: React.FC = () => {
         {!collapsed && (
           <div>
             <span className="text-xs font-black text-slate-900 uppercase tracking-wider pl-1 block">
-              COD
+              CDO
             </span>
             <span className="text-[11px] text-slate-500 pl-1 block">
-              Módulos Sincronizados
+              Control Total y Sincronización
             </span>
           </div>
         )}
@@ -83,7 +91,7 @@ export const DesktopSidebar: React.FC = () => {
       </div>
 
       <div className="flex-1 py-3 px-2 space-y-1 overflow-y-auto">
-        {COD_MODULES.map((mod) => {
+        {CDO_MODULES.map((mod) => {
           const Icon = mod.icon;
           const isActive = activeModule === mod.id;
           return (
@@ -149,7 +157,7 @@ export const DesktopSidebar: React.FC = () => {
 
       {!collapsed && (
         <div className="p-3 border-t border-slate-100 text-[11px] text-slate-400 flex items-center justify-between">
-          <span>COD</span>
+          <span>CDO</span>
           <span className="font-mono">v2.6</span>
         </div>
       )}

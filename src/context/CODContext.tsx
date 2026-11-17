@@ -4,17 +4,28 @@ export interface CODCompany {
   id: string;
   name: string;
   shortName: string;
+  rfc?: string;
+}
+
+export interface CODClient {
+  id: string;
+  name: string;
+  rfc?: string;
+  contact?: string;
 }
 
 export interface CODCostCenter {
   id: string;
   name: string;
+  clientId?: string;
+  clientName?: string;
   companyId: string;
 }
 
 export interface CODAccount {
   id: string;
   name: string;
+  accountNumber?: string;
   type: 'banco' | 'efectivo';
   companyId: string;
   initialBalance: number;
@@ -27,6 +38,12 @@ export interface CODAccountComputed extends CODAccount {
   currentBalance: number;
 }
 
+export interface CODConceptItem {
+  id: string;
+  name: string;
+  kind: 'ingreso' | 'egreso';
+}
+
 export interface CODIncome {
   id: string;
   movNumber: number;
@@ -34,6 +51,8 @@ export interface CODIncome {
   date: string;
   companyId: string;
   companyName: string;
+  clientId?: string;
+  clientName?: string;
   subtotal: number;
   iva: number;
   total: number;
@@ -64,31 +83,51 @@ export interface CODExpense {
 
 export interface CODSyncBanner {
   id: string;
-  kind: 'ingreso' | 'egreso' | 'cuenta';
+  kind: 'ingreso' | 'egreso' | 'cuenta' | 'catalogo';
   title: string;
   detail: string;
   timestamp: number;
 }
 
 export const INITIAL_COD_COMPANIES: CODCompany[] = [
-  { id: 'sa-1', name: 'S.A. Constructora 1', shortName: 'Constructora 1' },
-  { id: 'sa-2', name: 'S.A. Inmobiliaria 2', shortName: 'Inmobiliaria 2' },
-  { id: 'sa-3', name: 'S.A. Fabricación 3', shortName: 'Fabricación 3' },
+  { id: 'sa-1', name: 'S.A. Constructora 1', shortName: 'Constructora 1', rfc: 'CON200115AB1' },
+  { id: 'sa-2', name: 'S.A. Inmobiliaria 2', shortName: 'Inmobiliaria 2', rfc: 'INM190422CD2' },
+  { id: 'sa-3', name: 'S.A. Fabricación 3', shortName: 'Fabricación 3', rfc: 'FAB210810EF3' },
+];
+
+export const INITIAL_COD_CLIENTS: CODClient[] = [
+  { id: 'cli-1', name: 'Desarrollos Juárez S.A.', rfc: 'DJU180312XX1', contact: 'Lic. Mariana Ortiz' },
+  { id: 'cli-2', name: 'Grupo Corporativo Reforma', rfc: 'GCR150908YY2', contact: 'Ing. Arturo Méndez' },
+  { id: 'cli-3', name: 'Comercializadora del Norte', rfc: 'CNO201105ZZ3', contact: 'Arq. Sofía Garza' },
 ];
 
 export const INITIAL_COD_COST_CENTERS: CODCostCenter[] = [
-  { id: 'obra-juarez', name: 'Obra Juárez 150', companyId: 'sa-1' },
-  { id: 'obra-corp', name: 'Corporativo Reforma', companyId: 'sa-2' },
-  { id: 'obra-mob', name: 'Obra Mobiliario Especial', companyId: 'sa-3' },
-  { id: 'obra-nave', name: 'Nave Industrial Norte', companyId: 'sa-1' },
-  { id: 'obra-plaza', name: 'Plaza Mirador', companyId: 'sa-2' },
+  { id: 'obra-juarez', name: 'Obra Juárez 150', clientId: 'cli-1', clientName: 'Desarrollos Juárez S.A.', companyId: 'sa-1' },
+  { id: 'obra-corp', name: 'Corporativo Reforma', clientId: 'cli-2', clientName: 'Grupo Corporativo Reforma', companyId: 'sa-2' },
+  { id: 'obra-mob', name: 'Obra Mobiliario Especial', clientId: 'cli-3', clientName: 'Comercializadora del Norte', companyId: 'sa-3' },
+  { id: 'obra-nave', name: 'Nave Industrial Norte', clientId: 'cli-1', clientName: 'Desarrollos Juárez S.A.', companyId: 'sa-1' },
+  { id: 'obra-plaza', name: 'Plaza Mirador', clientId: 'cli-2', clientName: 'Grupo Corporativo Reforma', companyId: 'sa-2' },
 ];
 
 export const INITIAL_COD_ACCOUNTS: CODAccount[] = [
-  { id: 'acc-banorte', name: 'Banorte', type: 'banco', companyId: 'sa-1', initialBalance: 200000 },
-  { id: 'acc-ixe', name: 'IXE', type: 'banco', companyId: 'sa-2', initialBalance: 150000 },
-  { id: 'acc-banregio', name: 'Banregio', type: 'banco', companyId: 'sa-3', initialBalance: 80000 },
-  { id: 'acc-efectivo', name: 'Caja Chica / Efectivo', type: 'efectivo', companyId: 'sa-1', initialBalance: 0 },
+  { id: 'acc-banorte', name: 'Banorte', accountNumber: '0184-9921', type: 'banco', companyId: 'sa-1', initialBalance: 200000 },
+  { id: 'acc-ixe', name: 'IXE', accountNumber: '4420-1105', type: 'banco', companyId: 'sa-2', initialBalance: 150000 },
+  { id: 'acc-banregio', name: 'Banregio', accountNumber: '8871-3044', type: 'banco', companyId: 'sa-3', initialBalance: 80000 },
+  { id: 'acc-efectivo', name: 'Caja Chica / Efectivo', accountNumber: 'CAJA-01', type: 'efectivo', companyId: 'sa-1', initialBalance: 0 },
+];
+
+export const INITIAL_COD_CONCEPTS: CODConceptItem[] = [
+  { id: 'con-ing-1', name: 'Anticipo de Obra', kind: 'ingreso' },
+  { id: 'con-ing-2', name: 'Estimación de Obra', kind: 'ingreso' },
+  { id: 'con-ing-3', name: 'Finiquito de Contrato', kind: 'ingreso' },
+  { id: 'con-ing-4', name: 'Venta de Mobiliario / Equipo', kind: 'ingreso' },
+  { id: 'con-ing-5', name: 'Aditiva / Trabajo Extra', kind: 'ingreso' },
+  { id: 'con-egr-1', name: 'Materiales de Construcción', kind: 'egreso' },
+  { id: 'con-egr-2', name: 'Mano de Obra / Nómina', kind: 'egreso' },
+  { id: 'con-egr-3', name: 'Subcontratos Especializados', kind: 'egreso' },
+  { id: 'con-egr-4', name: 'Renta de Maquinaria y Equipo', kind: 'egreso' },
+  { id: 'con-egr-5', name: 'Combustible, Fletes y Viáticos', kind: 'egreso' },
+  { id: 'con-egr-6', name: 'Gastos Administrativos y Oficina', kind: 'egreso' },
 ];
 
 export const INITIAL_COD_INCOMES: CODIncome[] = [
@@ -99,6 +138,8 @@ export const INITIAL_COD_INCOMES: CODIncome[] = [
     date: '2026-11-01',
     companyId: 'sa-1',
     companyName: 'S.A. Constructora 1',
+    clientId: 'cli-1',
+    clientName: 'Desarrollos Juárez S.A.',
     subtotal: 500000,
     iva: 80000,
     total: 580000,
@@ -115,6 +156,8 @@ export const INITIAL_COD_INCOMES: CODIncome[] = [
     date: '2026-11-05',
     companyId: 'sa-2',
     companyName: 'S.A. Inmobiliaria 2',
+    clientId: 'cli-2',
+    clientName: 'Grupo Corporativo Reforma',
     subtotal: 300000,
     iva: 48000,
     total: 348000,
@@ -131,6 +174,8 @@ export const INITIAL_COD_INCOMES: CODIncome[] = [
     date: '2026-11-10',
     companyId: 'sa-3',
     companyName: 'S.A. Fabricación 3',
+    clientId: 'cli-3',
+    clientName: 'Comercializadora del Norte',
     subtotal: 150000,
     iva: 24000,
     total: 174000,
@@ -196,27 +241,29 @@ export const INITIAL_COD_EXPENSES: CODExpense[] = [
   },
 ];
 
-interface AddCODIncomeInput {
+export interface AddCODIncomeInput {
   concept: string;
   date: string;
   companyId: string;
-  subtotal: number; // Monto s/IVA -> el sistema calcula IVA 16% y Total c/IVA
+  subtotal: number;
   accountId: string;
   projectId?: string;
+  clientId?: string;
 }
 
-interface AddCODExpenseInput {
+export interface AddCODExpenseInput {
   concept: string;
   date: string;
-  projectId: string; // Obra (Centro de Costos)
-  companyId: string; // S.A. pagadora
-  accountId: string; // Cuenta de origen
+  projectId: string;
+  companyId: string;
+  accountId: string;
   subtotal: number;
   capturedVia: 'Manual' | 'WhatsApp OCR';
 }
 
-interface AddCODAccountInput {
+export interface AddCODAccountInput {
   name: string;
+  accountNumber?: string;
   type: 'banco' | 'efectivo';
   companyId: string;
   initialBalance: number;
@@ -224,36 +271,73 @@ interface AddCODAccountInput {
 
 interface CODContextType {
   companies: CODCompany[];
+  clients: CODClient[];
   costCenters: CODCostCenter[];
   accounts: CODAccountComputed[];
+  concepts: CODConceptItem[];
   incomes: CODIncome[];
   expenses: CODExpense[];
   selectedCompanyFilter: string;
   setSelectedCompanyFilter: (id: string) => void;
   lastSync: CODSyncBanner | null;
   clearLastSync: () => void;
+
+  // Incomes CRUD
   addIncome: (input: AddCODIncomeInput) => CODIncome;
+  updateIncome: (id: string, input: AddCODIncomeInput) => void;
   deleteIncome: (id: string) => void;
+
+  // Expenses CRUD
   addExpense: (input: AddCODExpenseInput) => CODExpense;
+  updateExpense: (id: string, input: AddCODExpenseInput) => void;
   deleteExpense: (id: string) => void;
-  addCostCenter: (name: string, companyId: string) => CODCostCenter;
+
+  // Companies (S.A.) CRUD
+  addCompany: (name: string, shortName?: string, rfc?: string) => CODCompany;
+  updateCompany: (id: string, data: Partial<Omit<CODCompany, 'id'>>) => void;
+  deleteCompany: (id: string) => boolean;
+
+  // Clients CRUD
+  addClient: (name: string, rfc?: string, contact?: string) => CODClient;
+  updateClient: (id: string, data: Partial<Omit<CODClient, 'id'>>) => void;
+  deleteClient: (id: string) => void;
+
+  // Projects / Obras (Cost Centers) CRUD
+  addCostCenter: (name: string, companyId: string, clientId?: string) => CODCostCenter;
+  updateCostCenter: (id: string, data: Partial<Omit<CODCostCenter, 'id'>>) => void;
+  deleteCostCenter: (id: string) => void;
+
+  // Accounts (Banks & Cash) CRUD
   addAccount: (input: AddCODAccountInput) => CODAccount;
+  updateAccount: (id: string, data: Partial<Omit<CODAccount, 'id'>>) => void;
   updateAccountInitialBalance: (accountId: string, newInitialBalance: number) => void;
+  deleteAccount: (id: string) => boolean;
+
+  // Concepts CRUD
+  addConcept: (name: string, kind: 'ingreso' | 'egreso') => CODConceptItem;
+  deleteConcept: (id: string) => void;
+
+  // Client Data Reset / Start from Zero
+  clearMovementsToZero: () => void;
+  clearAllToZero: () => void;
   resetCODData: () => void;
 }
 
 const CODContext = createContext<CODContextType | undefined>(undefined);
 
 const STORAGE_KEYS = {
-  version: 'pc_cod_schema_v1',
-  costCenters: 'pc_cod_v1_obras',
-  accounts: 'pc_cod_v1_accounts',
-  incomes: 'pc_cod_v1_incomes',
-  expenses: 'pc_cod_v1_expenses',
+  version: 'pc_cdo_schema_v2',
+  companies: 'pc_cdo_v2_companies',
+  clients: 'pc_cdo_v2_clients',
+  costCenters: 'pc_cdo_v2_obras',
+  accounts: 'pc_cdo_v2_accounts',
+  concepts: 'pc_cdo_v2_concepts',
+  incomes: 'pc_cdo_v2_incomes',
+  expenses: 'pc_cdo_v2_expenses',
 };
 
 function loadCODStored<T>(key: string, fallback: T): T {
-  if (localStorage.getItem(STORAGE_KEYS.version) !== '1') {
+  if (localStorage.getItem(STORAGE_KEYS.version) !== '2') {
     return fallback;
   }
   const raw = localStorage.getItem(key);
@@ -268,42 +352,103 @@ function loadCODStored<T>(key: string, fallback: T): T {
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [companies] = useState<CODCompany[]>(INITIAL_COD_COMPANIES);
   const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string>('ALL');
 
-  const [costCenters, setCostCenters] = useState<CODCostCenter[]>(() =>
+  const [companies, setCompanies] = useState<CODCompany[]>(() =>
+    loadCODStored(STORAGE_KEYS.companies, INITIAL_COD_COMPANIES)
+  );
+  const [clients, setClients] = useState<CODClient[]>(() =>
+    loadCODStored(STORAGE_KEYS.clients, INITIAL_COD_CLIENTS)
+  );
+  const [rawCostCenters, setRawCostCenters] = useState<CODCostCenter[]>(() =>
     loadCODStored(STORAGE_KEYS.costCenters, INITIAL_COD_COST_CENTERS)
   );
   const [baseAccounts, setBaseAccounts] = useState<CODAccount[]>(() =>
     loadCODStored(STORAGE_KEYS.accounts, INITIAL_COD_ACCOUNTS)
   );
-  const [incomes, setIncomes] = useState<CODIncome[]>(() =>
+  const [concepts, setConcepts] = useState<CODConceptItem[]>(() =>
+    loadCODStored(STORAGE_KEYS.concepts, INITIAL_COD_CONCEPTS)
+  );
+  const [rawIncomes, setRawIncomes] = useState<CODIncome[]>(() =>
     loadCODStored(STORAGE_KEYS.incomes, INITIAL_COD_INCOMES)
   );
-  const [expenses, setExpenses] = useState<CODExpense[]>(() =>
+  const [rawExpenses, setRawExpenses] = useState<CODExpense[]>(() =>
     loadCODStored(STORAGE_KEYS.expenses, INITIAL_COD_EXPENSES)
   );
   const [lastSync, setLastSync] = useState<CODSyncBanner | null>(null);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.version, '1');
+    localStorage.setItem(STORAGE_KEYS.version, '2');
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.costCenters, JSON.stringify(costCenters));
-  }, [costCenters]);
+    localStorage.setItem(STORAGE_KEYS.companies, JSON.stringify(companies));
+  }, [companies]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.clients, JSON.stringify(clients));
+  }, [clients]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.costCenters, JSON.stringify(rawCostCenters));
+  }, [rawCostCenters]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.accounts, JSON.stringify(baseAccounts));
   }, [baseAccounts]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.incomes, JSON.stringify(incomes));
-  }, [incomes]);
+    localStorage.setItem(STORAGE_KEYS.concepts, JSON.stringify(concepts));
+  }, [concepts]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.expenses, JSON.stringify(expenses));
-  }, [expenses]);
+    localStorage.setItem(STORAGE_KEYS.incomes, JSON.stringify(rawIncomes));
+  }, [rawIncomes]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.expenses, JSON.stringify(rawExpenses));
+  }, [rawExpenses]);
+
+  // Resolve dynamic relational names so catalog edits reflect immediately everywhere
+  const costCenters = useMemo<CODCostCenter[]>(() => {
+    return rawCostCenters.map((obra) => {
+      const cli = obra.clientId ? clients.find((c) => c.id === obra.clientId) : undefined;
+      return {
+        ...obra,
+        clientName: cli?.name || obra.clientName,
+      };
+    });
+  }, [rawCostCenters, clients]);
+
+  const incomes = useMemo<CODIncome[]>(() => {
+    return rawIncomes.map((inc) => {
+      const comp = companies.find((c) => c.id === inc.companyId);
+      const acc = baseAccounts.find((a) => a.id === inc.accountId);
+      const proj = inc.projectId ? costCenters.find((p) => p.id === inc.projectId) : undefined;
+      const cli = inc.clientId ? clients.find((c) => c.id === inc.clientId) : undefined;
+      return {
+        ...inc,
+        companyName: comp?.name || inc.companyName,
+        accountName: acc?.name || inc.accountName,
+        projectName: proj?.name || inc.projectName,
+        clientName: cli?.name || inc.clientName,
+      };
+    });
+  }, [rawIncomes, companies, baseAccounts, costCenters, clients]);
+
+  const expenses = useMemo<CODExpense[]>(() => {
+    return rawExpenses.map((exp) => {
+      const comp = companies.find((c) => c.id === exp.companyId);
+      const acc = baseAccounts.find((a) => a.id === exp.accountId);
+      const proj = costCenters.find((p) => p.id === exp.projectId);
+      return {
+        ...exp,
+        companyName: comp?.name || exp.companyName,
+        accountName: acc?.name || exp.accountName,
+        projectName: proj?.name || exp.projectName,
+      };
+    });
+  }, [rawExpenses, companies, baseAccounts, costCenters]);
 
   // Real-time automatic bank & cash balance computation: Saldo Inicial + Ingresos - Egresos
   const accounts = useMemo<CODAccountComputed[]>(() => {
@@ -331,52 +476,101 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, [baseAccounts, companies, incomes, expenses]);
 
+  // INCOMES CRUD
   const addIncome = (input: AddCODIncomeInput): CODIncome => {
     const company = companies.find((c) => c.id === input.companyId) || companies[0];
     const account = baseAccounts.find((a) => a.id === input.accountId) || baseAccounts[0];
-    const project = input.projectId
-      ? costCenters.find((p) => p.id === input.projectId)
+    const project = input.projectId ? costCenters.find((p) => p.id === input.projectId) : undefined;
+    const client = input.clientId
+      ? clients.find((c) => c.id === input.clientId)
+      : project?.clientId
+      ? clients.find((c) => c.id === project.clientId)
       : undefined;
 
     const subtotal = round2(Math.max(0, input.subtotal));
     const iva = round2(subtotal * 0.16);
     const total = round2(subtotal + iva);
     const nextMov =
-      incomes.length > 0 ? Math.max(...incomes.map((i) => i.movNumber)) + 1 : 1;
+      rawIncomes.length > 0 ? Math.max(...rawIncomes.map((i) => i.movNumber)) + 1 : 1;
 
     const record: CODIncome = {
       id: `inc-${Date.now()}`,
       movNumber: nextMov,
       concept: input.concept.trim(),
       date: input.date,
-      companyId: company.id,
-      companyName: company.name,
+      companyId: company?.id || input.companyId,
+      companyName: company?.name || input.companyId,
+      clientId: client?.id,
+      clientName: client?.name,
       subtotal,
       iva,
       total,
-      accountId: account.id,
-      accountName: account.name,
+      accountId: account?.id || input.accountId,
+      accountName: account?.name || input.accountId,
       projectId: project?.id,
       projectName: project?.name,
       timestamp: Date.now(),
     };
 
-    setIncomes((prev) => [...prev, record]);
+    setRawIncomes((prev) => [...prev, record]);
     setLastSync({
       id: `sync-${Date.now()}`,
       kind: 'ingreso',
       title: `Ingreso #${nextMov} registrado y sincronizado`,
-      detail: `+$${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })} c/IVA en ${account.name} (${company.name})`,
+      detail: `+$${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })} c/IVA en ${record.accountName} (${record.companyName})`,
       timestamp: Date.now(),
     });
 
     return record;
   };
 
-  const deleteIncome = (id: string) => {
-    setIncomes((prev) => prev.filter((item) => item.id !== id));
+  const updateIncome = (id: string, input: AddCODIncomeInput) => {
+    const company = companies.find((c) => c.id === input.companyId) || companies[0];
+    const account = baseAccounts.find((a) => a.id === input.accountId) || baseAccounts[0];
+    const project = input.projectId ? costCenters.find((p) => p.id === input.projectId) : undefined;
+    const client = input.clientId ? clients.find((c) => c.id === input.clientId) : undefined;
+
+    const subtotal = round2(Math.max(0, input.subtotal));
+    const iva = round2(subtotal * 0.16);
+    const total = round2(subtotal + iva);
+
+    setRawIncomes((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              concept: input.concept.trim(),
+              date: input.date,
+              companyId: company?.id || input.companyId,
+              companyName: company?.name || input.companyId,
+              clientId: client?.id,
+              clientName: client?.name,
+              projectId: project?.id,
+              projectName: project?.name,
+              accountId: account?.id || input.accountId,
+              accountName: account?.name || input.accountId,
+              subtotal,
+              iva,
+              total,
+            }
+          : item
+      )
+    );
+
+    setLastSync({
+      id: `sync-${Date.now()}`,
+      kind: 'ingreso',
+      title: 'Ingreso actualizado',
+      detail: `Recálculo automático aplicado: $${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })} c/IVA en ${account?.name || ''}`,
+      timestamp: Date.now(),
+    });
   };
 
+  const deleteIncome = (id: string) => {
+    setRawIncomes((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  // EXPENSES CRUD
   const addExpense = (input: AddCODExpenseInput): CODExpense => {
     const company = companies.find((c) => c.id === input.companyId) || companies[0];
     const account = baseAccounts.find((a) => a.id === input.accountId) || baseAccounts[0];
@@ -386,56 +580,179 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const iva = round2(subtotal * 0.16);
     const total = round2(subtotal + iva);
     const nextMov =
-      expenses.length > 0 ? Math.max(...expenses.map((e) => e.movNumber)) + 1 : 1;
+      rawExpenses.length > 0 ? Math.max(...rawExpenses.map((e) => e.movNumber)) + 1 : 1;
 
     const record: CODExpense = {
       id: `egr-${Date.now()}`,
       movNumber: nextMov,
       concept: input.concept.trim(),
       date: input.date,
-      projectId: project.id,
-      projectName: project.name,
-      companyId: company.id,
-      companyName: company.name,
+      projectId: project?.id || input.projectId,
+      projectName: project?.name || 'Obra General',
+      companyId: company?.id || input.companyId,
+      companyName: company?.name || input.companyId,
       subtotal,
       iva,
       total,
-      accountId: account.id,
-      accountName: account.name,
+      accountId: account?.id || input.accountId,
+      accountName: account?.name || input.accountId,
       capturedVia: input.capturedVia,
       timestamp: Date.now(),
     };
 
-    setExpenses((prev) => [...prev, record]);
+    setRawExpenses((prev) => [...prev, record]);
     setLastSync({
       id: `sync-${Date.now()}`,
       kind: 'egreso',
       title: `Egreso #${nextMov} (${input.capturedVia}) sincronizado`,
-      detail: `-$${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })} c/IVA de ${account.name} · Obra: ${project.name} (${company.name})`,
+      detail: `-$${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })} c/IVA de ${record.accountName} · Obra: ${record.projectName} (${record.companyName})`,
       timestamp: Date.now(),
     });
 
     return record;
   };
 
-  const deleteExpense = (id: string) => {
-    setExpenses((prev) => prev.filter((item) => item.id !== id));
+  const updateExpense = (id: string, input: AddCODExpenseInput) => {
+    const company = companies.find((c) => c.id === input.companyId) || companies[0];
+    const account = baseAccounts.find((a) => a.id === input.accountId) || baseAccounts[0];
+    const project = costCenters.find((p) => p.id === input.projectId) || costCenters[0];
+
+    const subtotal = round2(Math.max(0, input.subtotal));
+    const iva = round2(subtotal * 0.16);
+    const total = round2(subtotal + iva);
+
+    setRawExpenses((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              concept: input.concept.trim(),
+              date: input.date,
+              projectId: project?.id || input.projectId,
+              projectName: project?.name || item.projectName,
+              companyId: company?.id || input.companyId,
+              companyName: company?.name || item.companyName,
+              accountId: account?.id || input.accountId,
+              accountName: account?.name || item.accountName,
+              subtotal,
+              iva,
+              total,
+              capturedVia: input.capturedVia,
+            }
+          : item
+      )
+    );
+
+    setLastSync({
+      id: `sync-${Date.now()}`,
+      kind: 'egreso',
+      title: 'Egreso actualizado',
+      detail: `-$${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })} c/IVA ajustado en ${account?.name || ''}`,
+      timestamp: Date.now(),
+    });
   };
 
-  const addCostCenter = (name: string, companyId: string): CODCostCenter => {
+  const deleteExpense = (id: string) => {
+    setRawExpenses((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  // COMPANIES (S.A.) CRUD
+  const addCompany = (name: string, shortName?: string, rfc?: string): CODCompany => {
+    const trimmed = name.trim();
+    const newCo: CODCompany = {
+      id: `sa-${Date.now()}`,
+      name: trimmed,
+      shortName: (shortName || trimmed).trim(),
+      rfc: rfc?.trim() || undefined,
+    };
+    setCompanies((prev) => [...prev, newCo]);
+    setLastSync({
+      id: `sync-${Date.now()}`,
+      kind: 'catalogo',
+      title: `S.A. "${newCo.name}" agregada`,
+      detail: 'Columna añadida automáticamente al Resumen Consolidado',
+      timestamp: Date.now(),
+    });
+    return newCo;
+  };
+
+  const updateCompany = (id: string, data: Partial<Omit<CODCompany, 'id'>>) => {
+    setCompanies((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, ...data } : c))
+    );
+  };
+
+  const deleteCompany = (id: string): boolean => {
+    if (companies.length <= 1) return false;
+    setCompanies((prev) => prev.filter((c) => c.id !== id));
+    if (selectedCompanyFilter === id) setSelectedCompanyFilter('ALL');
+    return true;
+  };
+
+  // CLIENTS CRUD
+  const addClient = (name: string, rfc?: string, contact?: string): CODClient => {
+    const newClient: CODClient = {
+      id: `cli-${Date.now()}`,
+      name: name.trim(),
+      rfc: rfc?.trim() || undefined,
+      contact: contact?.trim() || undefined,
+    };
+    setClients((prev) => [...prev, newClient]);
+    setLastSync({
+      id: `sync-${Date.now()}`,
+      kind: 'catalogo',
+      title: `Cliente "${newClient.name}" agregado`,
+      detail: 'Disponible en Proyectos, Ingresos y Catálogos',
+      timestamp: Date.now(),
+    });
+    return newClient;
+  };
+
+  const updateClient = (id: string, data: Partial<Omit<CODClient, 'id'>>) => {
+    setClients((prev) => prev.map((c) => (c.id === id ? { ...c, ...data } : c)));
+  };
+
+  const deleteClient = (id: string) => {
+    setClients((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  // COST CENTERS (PROJECTS / OBRAS) CRUD
+  const addCostCenter = (name: string, companyId: string, clientId?: string): CODCostCenter => {
+    const cli = clientId ? clients.find((c) => c.id === clientId) : undefined;
     const newObra: CODCostCenter = {
       id: `obra-${Date.now()}`,
       name: name.trim(),
       companyId,
+      clientId: cli?.id,
+      clientName: cli?.name,
     };
-    setCostCenters((prev) => [...prev, newObra]);
+    setRawCostCenters((prev) => [...prev, newObra]);
+    setLastSync({
+      id: `sync-${Date.now()}`,
+      kind: 'catalogo',
+      title: `Proyecto "${newObra.name}" creado`,
+      detail: cli ? `Ligado al cliente ${cli.name}` : 'Disponible en Ingresos y Egresos',
+      timestamp: Date.now(),
+    });
     return newObra;
   };
 
+  const updateCostCenter = (id: string, data: Partial<Omit<CODCostCenter, 'id'>>) => {
+    setRawCostCenters((prev) =>
+      prev.map((o) => (o.id === id ? { ...o, ...data } : o))
+    );
+  };
+
+  const deleteCostCenter = (id: string) => {
+    setRawCostCenters((prev) => prev.filter((o) => o.id !== id));
+  };
+
+  // ACCOUNTS (BANKS & CASH) CRUD
   const addAccount = (input: AddCODAccountInput): CODAccount => {
     const newAcc: CODAccount = {
       id: `acc-${Date.now()}`,
       name: input.name.trim(),
+      accountNumber: input.accountNumber?.trim() || undefined,
       type: input.type,
       companyId: input.companyId,
       initialBalance: round2(Math.max(0, input.initialBalance)),
@@ -446,27 +763,108 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `sync-${Date.now()}`,
       kind: 'cuenta',
       title: `Cuenta "${newAcc.name}" agregada`,
-      detail: `Asociada a ${companyName} con Saldo Inicial de $${newAcc.initialBalance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`,
+      detail: `Asociada a ${companyName} · Saldo Inicial $${newAcc.initialBalance.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`,
       timestamp: Date.now(),
     });
     return newAcc;
   };
 
-  const updateAccountInitialBalance = (accountId: string, newInitialBalance: number) => {
+  const updateAccount = (id: string, data: Partial<Omit<CODAccount, 'id'>>) => {
     setBaseAccounts((prev) =>
       prev.map((acc) =>
-        acc.id === accountId
-          ? { ...acc, initialBalance: round2(Math.max(0, newInitialBalance)) }
+        acc.id === id
+          ? {
+              ...acc,
+              ...data,
+              initialBalance:
+                data.initialBalance !== undefined
+                  ? round2(Math.max(0, data.initialBalance))
+                  : acc.initialBalance,
+            }
           : acc
       )
     );
   };
 
+  const updateAccountInitialBalance = (accountId: string, newInitialBalance: number) => {
+    updateAccount(accountId, { initialBalance: newInitialBalance });
+  };
+
+  const deleteAccount = (id: string): boolean => {
+    if (baseAccounts.length <= 1) return false;
+    setBaseAccounts((prev) => prev.filter((a) => a.id !== id));
+    return true;
+  };
+
+  // CONCEPTS CRUD
+  const addConcept = (name: string, kind: 'ingreso' | 'egreso'): CODConceptItem => {
+    const newConcept: CODConceptItem = {
+      id: `con-${Date.now()}`,
+      name: name.trim(),
+      kind,
+    };
+    setConcepts((prev) => [...prev, newConcept]);
+    return newConcept;
+  };
+
+  const deleteConcept = (id: string) => {
+    setConcepts((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  // RESET / START FROM ZERO
+  const clearMovementsToZero = () => {
+    setRawIncomes([]);
+    setRawExpenses([]);
+    setBaseAccounts((prev) => prev.map((a) => ({ ...a, initialBalance: 0 })));
+    setLastSync({
+      id: `sync-${Date.now()}`,
+      kind: 'catalogo',
+      title: 'Movimientos y saldos en $0.00',
+      detail: 'Catálogos conservados; listo para registrar operación real',
+      timestamp: Date.now(),
+    });
+  };
+
+  const clearAllToZero = () => {
+    const primarySa: CODCompany = companies[0] || {
+      id: 'sa-1',
+      name: 'Mi Empresa S.A.',
+      shortName: 'Empresa 1',
+    };
+    setCompanies([primarySa]);
+    setClients([]);
+    setRawCostCenters([]);
+    setBaseAccounts([
+      {
+        id: 'acc-principal',
+        name: 'Cuenta Principal',
+        accountNumber: '0001',
+        type: 'banco',
+        companyId: primarySa.id,
+        initialBalance: 0,
+      },
+    ]);
+    setRawIncomes([]);
+    setRawExpenses([]);
+    setSelectedCompanyFilter('ALL');
+    setLastSync({
+      id: `sync-${Date.now()}`,
+      kind: 'catalogo',
+      title: 'Sistema reiniciado en cero',
+      detail: 'Puedes dar de alta tus propias S.A., Clientes, Proyectos y Cuentas Bancarias',
+      timestamp: Date.now(),
+    });
+  };
+
   const resetCODData = () => {
-    setCostCenters(INITIAL_COD_COST_CENTERS);
+    setCompanies(INITIAL_COD_COMPANIES);
+    setClients(INITIAL_COD_CLIENTS);
+    setRawCostCenters(INITIAL_COD_COST_CENTERS);
     setBaseAccounts(INITIAL_COD_ACCOUNTS);
-    setIncomes(INITIAL_COD_INCOMES);
-    setExpenses(INITIAL_COD_EXPENSES);
+    setConcepts(INITIAL_COD_CONCEPTS);
+    setRawIncomes(INITIAL_COD_INCOMES);
+    setRawExpenses(INITIAL_COD_EXPENSES);
+    setSelectedCompanyFilter('ALL');
     setLastSync(null);
   };
 
@@ -474,8 +872,10 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <CODContext.Provider
       value={{
         companies,
+        clients,
         costCenters,
         accounts,
+        concepts,
         incomes,
         expenses,
         selectedCompanyFilter,
@@ -483,12 +883,28 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         lastSync,
         clearLastSync: () => setLastSync(null),
         addIncome,
+        updateIncome,
         deleteIncome,
         addExpense,
+        updateExpense,
         deleteExpense,
+        addCompany,
+        updateCompany,
+        deleteCompany,
+        addClient,
+        updateClient,
+        deleteClient,
         addCostCenter,
+        updateCostCenter,
+        deleteCostCenter,
         addAccount,
+        updateAccount,
         updateAccountInitialBalance,
+        deleteAccount,
+        addConcept,
+        deleteConcept,
+        clearMovementsToZero,
+        clearAllToZero,
         resetCODData,
       }}
     >

@@ -15,12 +15,14 @@ import { CODResumenView } from './views/cod/CODResumenView';
 import { CODIngresosView } from './views/cod/CODIngresosView';
 import { CODEgresosView } from './views/cod/CODEgresosView';
 import { CODBancosView } from './views/cod/CODBancosView';
+import { CODCatalogosView } from './views/cod/CODCatalogosView';
 
-const COD_TABS = [
-  { id: 'cod_resumen', label: 'RESUMEN' },
-  { id: 'cod_ingresos', label: 'INGRESOS' },
-  { id: 'cod_egresos', label: 'EGRESOS' },
-  { id: 'cod_bancos', label: 'CONTROL BANCARIO Y EFECTIVO' },
+const CDO_TABS = [
+  { id: 'cdo_resumen', label: 'RESUMEN' },
+  { id: 'cdo_ingresos', label: 'INGRESOS' },
+  { id: 'cdo_egresos', label: 'EGRESOS' },
+  { id: 'cdo_bancos', label: 'CONTROL BANCARIO Y EFECTIVO' },
+  { id: 'cdo_catalogos', label: 'CATÁLOGOS Y CLIENTES' },
 ];
 
 const DashboardContent: React.FC = () => {
@@ -30,15 +32,17 @@ const DashboardContent: React.FC = () => {
     return <RoleSelectionScreen />;
   }
 
-  const renderCODModule = () => {
+  const renderCDOModule = () => {
     switch (activeModule) {
-      case 'cod_ingresos':
+      case 'cdo_ingresos':
         return <CODIngresosView />;
-      case 'cod_egresos':
+      case 'cdo_egresos':
         return <CODEgresosView />;
-      case 'cod_bancos':
+      case 'cdo_bancos':
         return <CODBancosView />;
-      case 'cod_resumen':
+      case 'cdo_catalogos':
+        return <CODCatalogosView />;
+      case 'cdo_resumen':
       default:
         return <CODResumenView />;
     }
@@ -52,11 +56,10 @@ const DashboardContent: React.FC = () => {
         <DesktopSidebar />
 
         <main className="flex-1 p-4 md:p-6 pb-24 lg:pb-8 overflow-y-auto w-full space-y-4">
-          {/* Quick Sheet-Style Tab Switcher */}
           <div className="flex flex-wrap items-center gap-1.5 border-b border-slate-200 pb-2.5">
-            {COD_TABS.map((tab) => {
+            {CDO_TABS.map((tab) => {
               const isActive =
-                activeModule === tab.id || (!activeModule && tab.id === 'cod_resumen');
+                activeModule === tab.id || (!activeModule && tab.id === 'cdo_resumen');
               return (
                 <button
                   key={tab.id}
@@ -73,7 +76,7 @@ const DashboardContent: React.FC = () => {
             })}
           </div>
 
-          {renderCODModule()}
+          {renderCDOModule()}
         </main>
       </div>
 

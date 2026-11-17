@@ -8,7 +8,7 @@ import { LogOut, Building2, Printer } from 'lucide-react';
 import { UserRole } from '../types/erp';
 
 const ROLE_NAMES: Record<UserRole, { label: string; badgeColor: string }> = {
-  cod: { label: 'COD', badgeColor: 'bg-slate-900 text-amber-400' },
+  cdo: { label: 'CDO', badgeColor: 'bg-slate-900 text-amber-400' },
 };
 
 export const InstitutionalHeader: React.FC<{ onToggleSidebar?: () => void }> = () => {

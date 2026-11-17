@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useCOD } from '../../context/CODContext';
+import { useCOD, CODExpense } from '../../context/CODContext';
 import {
   PlusCircle,
   MessageSquare,
@@ -12,6 +12,9 @@ import {
   Receipt,
   Sparkles,
   Plus,
+  Edit3,
+  Download,
+  X,
 } from 'lucide-react';
 
 const fmt = (n: number) =>
@@ -21,7 +24,6 @@ interface OCRTicketPreset {
   id: string;
   label: string;
   provider: string;
-  folio: string;
   rawText: string;
   totalWithIva: number;
   suggestedObraId: string;
@@ -33,7 +35,6 @@ const OCR_PRESETS: OCRTicketPreset[] = [
     id: 'ocr-1',
     label: 'Ferretería / Cemento',
     provider: 'Materiales El Constructor SA · Ticket #8814',
-    folio: 'TKT-8814',
     rawText: '40 bultos cemento gris + malla electrosoldada · Obra Juárez 150',
     totalWithIva: 18560,
     suggestedObraId: 'obra-juarez',
@@ -43,7 +44,6 @@ const OCR_PRESETS: OCRTicketPreset[] = [
     id: 'ocr-2',
     label: 'Renta Maquinaria',
     provider: 'Maquinaria Pesada del Centro · Factura #3092',
-    folio: 'FAC-3092',
     rawText: 'Renta retroexcavadora 3 días · Corporativo Reforma',
     totalWithIva: 27840,
     suggestedObraId: 'obra-corp',
@@ -53,7 +53,6 @@ const OCR_PRESETS: OCRTicketPreset[] = [
     id: 'ocr-3',
     label: 'Herrajes y Pintura',
     provider: 'Comex / Herrajes Técnicos · Nota #1209',
-    folio: 'NOT-1209',
     rawText: 'Sellador poliuretano y pintura electrostática · Mobiliario Especial',
     totalWithIva: 11600,
     suggestedObraId: 'obra-mob',
@@ -66,29 +65,39 @@ export const CODEgresosView: React.FC = () => {
     companies,
     costCenters,
     accounts,
+    concepts,
     expenses,
     selectedCompanyFilter,
     addExpense,
+    updateExpense,
     deleteExpense,
     addCostCenter,
+    addAccount,
+    addConcept,
   } = useCOD();
 
+  const expenseConcepts = useMemo(
+    () => concepts.filter((c) => c.kind === 'egreso'),
+    [concepts]
+  );
+
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [captureMode, setCaptureMode] = useState<'Manual' | 'WhatsApp OCR'>('Manual');
   const [concept, setConcept] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [projectId, setProjectId] = useState(costCenters[0]?.id || '');
-  const [companyId, setCompanyId] = useState(companies[0].id);
-  const [accountId, setAccountId] = useState(accounts[0].id);
+  const [companyId, setCompanyId] = useState(companies[0]?.id || '');
+  const [accountId, setAccountId] = useState(accounts[0]?.id || '');
   const [amountInput, setAmountInput] = useState('');
   const [amountInputType, setAmountInputType] = useState<'sin_iva' | 'con_iva'>('sin_iva');
 
-  // WhatsApp OCR simulator state
   const [selectedPresetId, setSelectedPresetId] = useState<string>(OCR_PRESETS[0].id);
   const [whatsappRawText, setWhatsappRawText] = useState('');
 
-  // Quick new cost center inline
-  const [showNewObra, setShowNewObra] = useState(false);
-  const [newObraName, setNewObraName] = useState('');
+  // Quick-add inline drawers
+  const [quickAdd, setQuickAdd] = useState<'project' | 'account' | 'concept' | null>(null);
+  const [quickText, setQuickText] = useState('');
+  const [quickInitialBal, setQuickInitialBal] = useState('0');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -130,15 +139,16 @@ export const CODEgresosView: React.FC = () => {
     if (costCenters.some((o) => o.id === preset.suggestedObraId)) {
       setProjectId(preset.suggestedObraId);
     }
-    setCompanyId(preset.suggestedCompanyId);
-    const matchingAcc = accounts.find((a) => a.companyId === preset.suggestedCompanyId);
-    if (matchingAcc) setAccountId(matchingAcc.id);
+    if (companies.some((c) => c.id === preset.suggestedCompanyId)) {
+      setCompanyId(preset.suggestedCompanyId);
+      const matchingAcc = accounts.find((a) => a.companyId === preset.suggestedCompanyId);
+      if (matchingAcc) setAccountId(matchingAcc.id);
+    }
   };
 
   const handleSimulateCustomWhatsApp = () => {
     const text = whatsappRawText.trim();
     if (!text) return;
-    // Extract first number found in text if present
     const numMatch = text.replace(/,/g, '').match(/(\d+(?:\.\d{1,2})?)/);
     if (numMatch) {
       setAmountInputType('con_iva');
@@ -147,19 +157,54 @@ export const CODEgresosView: React.FC = () => {
     setConcept(`Ticket WhatsApp OCR · ${text.slice(0, 48)}`);
   };
 
-  const handleCreateObra = () => {
-    if (!newObraName.trim()) return;
-    const created = addCostCenter(newObraName, companyId);
-    setProjectId(created.id);
-    setNewObraName('');
-    setShowNewObra(false);
+  const handleQuickAddSave = () => {
+    if (!quickText.trim()) return;
+    if (quickAdd === 'project') {
+      const created = addCostCenter(quickText, companyId || companies[0]?.id || '');
+      setProjectId(created.id);
+    } else if (quickAdd === 'account') {
+      const initBal = parseFloat(quickInitialBal);
+      const created = addAccount({
+        name: quickText,
+        type: 'banco',
+        companyId: companyId || companies[0]?.id || '',
+        initialBalance: Number.isFinite(initBal) ? initBal : 0,
+      });
+      setAccountId(created.id);
+    } else if (quickAdd === 'concept') {
+      const created = addConcept(quickText, 'egreso');
+      setConcept((prev) => (prev ? prev : created.name));
+    }
+    setQuickText('');
+    setQuickInitialBal('0');
+    setQuickAdd(null);
+  };
+
+  const resetForm = () => {
+    setEditingId(null);
+    setConcept('');
+    setAmountInput('');
+    setWhatsappRawText('');
+  };
+
+  const handleStartEdit = (row: CODExpense) => {
+    setEditingId(row.id);
+    setCaptureMode(row.capturedVia);
+    setConcept(row.concept);
+    setDate(row.date);
+    setProjectId(row.projectId);
+    setCompanyId(row.companyId);
+    setAccountId(row.accountId);
+    setAmountInputType('sin_iva');
+    setAmountInput(String(row.subtotal));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!concept.trim() || !projectId || !companyId || !accountId || subtotal <= 0) return;
 
-    const created = addExpense({
+    const payload = {
       concept,
       date,
       projectId,
@@ -167,14 +212,19 @@ export const CODEgresosView: React.FC = () => {
       accountId,
       subtotal,
       capturedVia: captureMode,
-    });
+    };
 
-    setFeedback(
-      `Egreso #${created.movNumber} (${created.capturedVia}) aplicado: -$${fmt(created.total)} c/IVA descontado de ${created.accountName} · Obra: ${created.projectName} (${created.companyName}).`
-    );
-    setConcept('');
-    setAmountInput('');
-    setWhatsappRawText('');
+    if (editingId) {
+      updateExpense(editingId, payload);
+      setFeedback(`Egreso actualizado: Total c/IVA $${fmt(total)} recalculado en tiempo real.`);
+      resetForm();
+    } else {
+      const created = addExpense(payload);
+      setFeedback(
+        `Egreso #${created.movNumber} (${created.capturedVia}) aplicado: -$${fmt(created.total)} c/IVA descontado de ${created.accountName} · Obra: ${created.projectName} (${created.companyName}).`
+      );
+      resetForm();
+    }
   };
 
   const filteredExpenses = useMemo(() => {
@@ -203,6 +253,30 @@ export const CODEgresosView: React.FC = () => {
     );
   }, [filteredExpenses]);
 
+  const handleExportCSV = () => {
+    const headers = ['No. Mov', 'Concepto / Proveedor', 'Fecha', 'Obra', 'S.A. Pagadora', 'Monto s/IVA', 'IVA (16%)', 'Total c/IVA', 'Cuenta Origen', 'Vía'];
+    const rows = filteredExpenses.map((r) => [
+      r.movNumber,
+      `"${r.concept.replace(/"/g, '""')}"`,
+      r.date,
+      `"${r.projectName.replace(/"/g, '""')}"`,
+      `"${r.companyName}"`,
+      r.subtotal.toFixed(2),
+      r.iva.toFixed(2),
+      r.total.toFixed(2),
+      `"${r.accountName}"`,
+      r.capturedVia,
+    ]);
+    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `CDO_Egresos_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -216,7 +290,7 @@ export const CODEgresosView: React.FC = () => {
           </p>
         </div>
 
-        {/* Mode Switcher: Manual vs WhatsApp OCR */}
+        {/* Mode Switcher */}
         <div className="inline-flex bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs self-start">
           <button
             type="button"
@@ -234,7 +308,7 @@ export const CODEgresosView: React.FC = () => {
             type="button"
             onClick={() => {
               setCaptureMode('WhatsApp OCR');
-              if (!concept) handleLoadOCRPreset(OCR_PRESETS[0]);
+              if (!concept && !editingId) handleLoadOCRPreset(OCR_PRESETS[0]);
             }}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
               captureMode === 'WhatsApp OCR'
@@ -251,27 +325,120 @@ export const CODEgresosView: React.FC = () => {
       {/* Form Card */}
       <form
         onSubmit={handleSubmit}
-        className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-4"
+        className={`bg-white border rounded-2xl p-5 shadow-2xs space-y-4 ${
+          editingId ? 'border-amber-400 ring-2 ring-amber-100' : 'border-slate-200'
+        }`}
       >
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
-            {captureMode === 'WhatsApp OCR' ? (
+            {editingId ? (
+              <Edit3 className="w-4 h-4 text-amber-600" />
+            ) : captureMode === 'WhatsApp OCR' ? (
               <MessageSquare className="w-4 h-4 text-emerald-600" />
             ) : (
               <PlusCircle className="w-4 h-4 text-rose-600" />
             )}
             <h2 className="text-sm font-black text-slate-900 uppercase tracking-wide">
-              {captureMode === 'WhatsApp OCR'
+              {editingId
+                ? 'Editando Egreso Registrado'
+                : captureMode === 'WhatsApp OCR'
                 ? 'Simulador WhatsApp OCR → Egreso Sincronizado'
                 : 'Registrar Nuevo Egreso / Compra'}
             </h2>
           </div>
-          <span className="text-[11px] font-mono font-semibold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg">
-            Vínculo Obligatorio: Obra + S.A. + Cuenta
-          </span>
+
+          <div className="flex items-center gap-2">
+            {editingId && (
+              <button
+                type="button"
+                onClick={resetForm}
+                className="inline-flex items-center gap-1 text-xs font-bold text-slate-600 hover:text-slate-900 px-2.5 py-1 rounded-lg bg-slate-100 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Cancelar Edición</span>
+              </button>
+            )}
+            <span className="text-[11px] font-mono font-semibold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg">
+              Vínculo Obligatorio: Obra + S.A. + Cuenta
+            </span>
+          </div>
         </div>
 
-        {/* WhatsApp OCR Simulator Drawer when active */}
+        {/* Concept Quick Suggestions */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] font-bold text-slate-500 mr-1">Conceptos rápidos:</span>
+          {expenseConcepts.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setConcept(c.name)}
+              className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-100 hover:bg-rose-50 hover:text-rose-800 text-slate-700 border border-slate-200 transition-colors cursor-pointer"
+            >
+              {c.name}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setQuickAdd(quickAdd === 'concept' ? null : 'concept')}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 cursor-pointer"
+          >
+            <Plus className="w-3 h-3" />
+            <span>Concepto</span>
+          </button>
+        </div>
+
+        {/* Inline Quick-Add Drawer */}
+        {quickAdd && (
+          <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 flex flex-col sm:flex-row items-end gap-2">
+            <div className="flex-1 w-full">
+              <label className="block text-[11px] font-bold text-amber-900 mb-1">
+                {quickAdd === 'project'
+                  ? 'Nuevo Proyecto / Obra:'
+                  : quickAdd === 'account'
+                  ? 'Nueva Cuenta Bancaria:'
+                  : 'Nuevo Concepto de Egreso:'}
+              </label>
+              <input
+                type="text"
+                value={quickText}
+                onChange={(e) => setQuickText(e.target.value)}
+                placeholder="Escribe el nombre..."
+                className="w-full px-3 py-1.5 text-xs bg-white border border-amber-300 rounded-lg focus:outline-hidden"
+              />
+            </div>
+            {quickAdd === 'account' && (
+              <div className="w-full sm:w-36">
+                <label className="block text-[11px] font-bold text-amber-900 mb-1">Saldo Inicial:</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={quickInitialBal}
+                  onChange={(e) => setQuickInitialBal(e.target.value)}
+                  className="w-full px-3 py-1.5 text-xs font-mono bg-white border border-amber-300 rounded-lg"
+                />
+              </div>
+            )}
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={handleQuickAddSave}
+                className="px-3 py-1.5 bg-slate-900 text-white text-xs font-bold rounded-lg cursor-pointer"
+              >
+                Guardar
+              </button>
+              <button
+                type="button"
+                onClick={() => setQuickAdd(null)}
+                className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 text-xs font-bold rounded-lg cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* WhatsApp OCR Simulator Drawer */}
         {captureMode === 'WhatsApp OCR' && (
           <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-4 space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -302,7 +469,7 @@ export const CODEgresosView: React.FC = () => {
                 type="text"
                 value={whatsappRawText}
                 onChange={(e) => setWhatsappRawText(e.target.value)}
-                placeholder="Simular mensaje WhatsApp de residente: Ej. Ticket ferretería cemento $14,500..."
+                placeholder="Simular mensaje WhatsApp: Ej. Ticket ferretería cemento $14,500..."
                 className="flex-1 px-3 py-2 text-xs bg-white border border-emerald-300 rounded-xl focus:outline-hidden focus:border-emerald-600"
               />
               <button
@@ -316,7 +483,6 @@ export const CODEgresosView: React.FC = () => {
           </div>
         )}
 
-        {/* Mandatory 3-Link Fields + Concept + Amount */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
           <div className="md:col-span-2">
             <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -333,9 +499,7 @@ export const CODEgresosView: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Fecha *
-            </label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Fecha *</label>
             <input
               type="date"
               required
@@ -349,48 +513,29 @@ export const CODEgresosView: React.FC = () => {
             <div className="flex items-center justify-between mb-1">
               <label className="flex items-center gap-1 text-xs font-bold text-slate-700">
                 <HardHat className="w-3.5 h-3.5 text-amber-600" />
-                <span>1. Obra (Centro de Costos) *</span>
+                <span>1. Obra / Proyecto *</span>
               </label>
               <button
                 type="button"
-                onClick={() => setShowNewObra(!showNewObra)}
-                className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-700 hover:text-amber-800 cursor-pointer"
+                onClick={() => setQuickAdd(quickAdd === 'project' ? null : 'project')}
+                className="text-[10px] font-bold text-amber-700 hover:underline cursor-pointer"
               >
-                <Plus className="w-3 h-3" />
-                <span>Nueva Obra</span>
+                + Nuevo
               </button>
             </div>
-            {showNewObra ? (
-              <div className="flex gap-1.5">
-                <input
-                  type="text"
-                  value={newObraName}
-                  onChange={(e) => setNewObraName(e.target.value)}
-                  placeholder="Nombre de la obra..."
-                  className="flex-1 px-2.5 py-2 text-xs bg-white border border-amber-400 rounded-xl focus:outline-hidden"
-                />
-                <button
-                  type="button"
-                  onClick={handleCreateObra}
-                  className="px-2.5 py-2 bg-amber-500 text-slate-950 text-xs font-bold rounded-xl cursor-pointer"
-                >
-                  OK
-                </button>
-              </div>
-            ) : (
-              <select
-                required
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
-                className="w-full px-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl focus:outline-hidden focus:border-amber-500 focus:bg-white cursor-pointer"
-              >
-                {costCenters.map((obra) => (
-                  <option key={obra.id} value={obra.id}>
-                    {obra.name}
-                  </option>
-                ))}
-              </select>
-            )}
+            <select
+              required
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+              className="w-full px-3 py-2 text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl focus:outline-hidden focus:border-amber-500 focus:bg-white cursor-pointer"
+            >
+              {costCenters.length === 0 && <option value="">-- Crea un proyecto primero --</option>}
+              {costCenters.map((obra) => (
+                <option key={obra.id} value={obra.id}>
+                  {obra.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -413,10 +558,19 @@ export const CODEgresosView: React.FC = () => {
           </div>
 
           <div>
-            <label className="flex items-center gap-1 text-xs font-bold text-slate-700 mb-1">
-              <Landmark className="w-3.5 h-3.5 text-slate-500" />
-              <span>3. Cuenta de Origen *</span>
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="flex items-center gap-1 text-xs font-bold text-slate-700">
+                <Landmark className="w-3.5 h-3.5 text-slate-500" />
+                <span>3. Cuenta de Origen *</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setQuickAdd(quickAdd === 'account' ? null : 'account')}
+                className="text-[10px] font-bold text-amber-700 hover:underline cursor-pointer"
+              >
+                + Cuenta
+              </button>
+            </div>
             <select
               required
               value={accountId}
@@ -425,7 +579,7 @@ export const CODEgresosView: React.FC = () => {
             >
               {accounts.map((acc) => (
                 <option key={acc.id} value={acc.id}>
-                  {acc.name} ({acc.type === 'banco' ? 'Banco' : 'Efectivo'}) · Saldo ${fmt(acc.currentBalance)}
+                  {acc.name} {acc.accountNumber ? `(${acc.accountNumber})` : ''} · Saldo ${fmt(acc.currentBalance)}
                 </option>
               ))}
             </select>
@@ -458,7 +612,6 @@ export const CODEgresosView: React.FC = () => {
             />
           </div>
 
-          {/* Automatic Breakdown */}
           <div className="bg-slate-900 text-white rounded-xl px-3.5 py-2 flex flex-col justify-center">
             <div className="flex items-center justify-between text-[11px] text-slate-300">
               <span>s/IVA:</span>
@@ -489,11 +642,14 @@ export const CODEgresosView: React.FC = () => {
 
           <button
             type="submit"
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer shrink-0"
+            disabled={!projectId}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer shrink-0 disabled:opacity-40"
           >
             <PlusCircle className="w-4 h-4 text-amber-400" />
             <span>
-              {captureMode === 'WhatsApp OCR'
+              {editingId
+                ? 'Guardar Cambios del Egreso'
+                : captureMode === 'WhatsApp OCR'
                 ? 'Confirmar Ticket OCR y Descontar'
                 : 'Registrar Egreso y Descontar de Banco'}
             </span>
@@ -507,15 +663,24 @@ export const CODEgresosView: React.FC = () => {
           <h2 className="text-sm font-black text-[#0B2545] uppercase tracking-wide">
             REGISTRO CENTRALIZADO DE EGRESOS
           </h2>
-          <div className="relative w-full sm:w-64">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar obra, S.A., concepto..."
-              className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-hidden focus:border-amber-500"
-            />
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-64">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar obra, S.A., concepto..."
+                className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-hidden focus:border-amber-500"
+              />
+            </div>
+            <button
+              onClick={handleExportCSV}
+              className="inline-flex items-center gap-1 px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-bold rounded-lg cursor-pointer shrink-0"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">CSV</span>
+            </button>
           </div>
         </div>
 
@@ -533,7 +698,7 @@ export const CODEgresosView: React.FC = () => {
                 <th className="py-3 px-3 text-right font-bold whitespace-nowrap">Total c/IVA</th>
                 <th className="py-3 px-3 text-left font-bold min-w-[120px]">Cuenta Origen</th>
                 <th className="py-3 px-3 text-center font-bold whitespace-nowrap">Vía</th>
-                <th className="py-3 px-3 text-center font-bold w-14">Acción</th>
+                <th className="py-3 px-3 text-center font-bold w-20">Acción</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -570,20 +735,29 @@ export const CODEgresosView: React.FC = () => {
                     </span>
                   </td>
                   <td className="py-3 px-3 text-center">
-                    <button
-                      onClick={() => deleteExpense(row.id)}
-                      title="Eliminar registro"
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="inline-flex items-center gap-1">
+                      <button
+                        onClick={() => handleStartEdit(row)}
+                        title="Editar egreso"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-700 hover:bg-blue-50 transition-colors cursor-pointer"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => deleteExpense(row.id)}
+                        title="Eliminar egreso"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
               {filteredExpenses.length === 0 && (
                 <tr>
                   <td colSpan={11} className="py-8 text-center text-slate-400 text-xs">
-                    No hay egresos registrados con este filtro.
+                    No hay egresos registrados. Utiliza el formulario superior para capturar el primero.
                   </td>
                 </tr>
               )}

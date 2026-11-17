@@ -148,7 +148,7 @@ export const CODResumenView: React.FC = () => {
           </div>
 
           <button
-            onClick={() => setActiveModule('cod_ingresos')}
+            onClick={() => setActiveModule('cdo_ingresos')}
             className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
           >
             <ArrowDownLeft className="w-3.5 h-3.5" />
@@ -156,11 +156,18 @@ export const CODResumenView: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setActiveModule('cod_egresos')}
+            onClick={() => setActiveModule('cdo_egresos')}
             className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
           >
             <ArrowUpRight className="w-3.5 h-3.5 text-amber-400" />
             <span>+ Egreso</span>
+          </button>
+
+          <button
+            onClick={() => setActiveModule('cdo_catalogos')}
+            className="inline-flex items-center gap-1 px-3 py-2 bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+          >
+            <span>Catálogos</span>
           </button>
 
           <button
@@ -228,7 +235,7 @@ export const CODResumenView: React.FC = () => {
             ${fmt(consolidado.saldoBancos)}
           </div>
           <button
-            onClick={() => setActiveModule('cod_bancos')}
+            onClick={() => setActiveModule('cdo_bancos')}
             className="mt-1 text-[11px] text-slate-300 hover:text-amber-300 underline cursor-pointer"
           >
             Ver conciliación por banco y efectivo →
@@ -353,7 +360,7 @@ export const CODResumenView: React.FC = () => {
               </h3>
             </div>
             <button
-              onClick={() => setActiveModule('cod_bancos')}
+              onClick={() => setActiveModule('cdo_bancos')}
               className="text-xs font-bold text-amber-700 hover:text-amber-800 cursor-pointer"
             >
               Abrir Control Bancario →
@@ -394,7 +401,7 @@ export const CODResumenView: React.FC = () => {
               </h3>
             </div>
             <button
-              onClick={() => setActiveModule('cod_egresos')}
+              onClick={() => setActiveModule('cdo_egresos')}
               className="text-xs font-bold text-amber-700 hover:text-amber-800 cursor-pointer"
             >
               Ir a Egresos →

@@ -190,11 +190,11 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [currentRole, setCurrentRoleState] = useState<UserRole | null>(() => {
     const saved = localStorage.getItem('pc_erp_role');
     if (saved === 'null') return null;
-    return 'cod';
+    return 'cdo';
   });
 
   const [activeCompanyId, setActiveCompanyId] = useState<string>('ALL');
-  const [activeModule, setActiveModule] = useState<string>('cod_resumen');
+  const [activeModule, setActiveModule] = useState<string>('cdo_resumen');
 
   const [companies] = useState<Company[]>(INITIAL_COMPANIES);
 
@@ -510,7 +510,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentRoleState(role);
     if (role) {
       localStorage.setItem('pc_erp_role', role);
-      setActiveModule('cod_resumen');
+      setActiveModule('cdo_resumen');
     } else {
       localStorage.setItem('pc_erp_role', 'null');
     }
