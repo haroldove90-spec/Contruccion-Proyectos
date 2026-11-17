@@ -1,4 +1,23 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import {
+  fetchAllCDOFromSupabase,
+  dbUpsertCompany,
+  dbDeleteCompany,
+  dbUpsertClient,
+  dbDeleteClient,
+  dbUpsertProject,
+  dbDeleteProject,
+  dbUpsertAccount,
+  dbDeleteAccount,
+  dbUpsertConcept,
+  dbDeleteConcept,
+  dbUpsertIncome,
+  dbDeleteIncome,
+  dbUpsertExpense,
+  dbDeleteExpense,
+  dbClearMovementsToZero,
+  dbSyncFullSnapshot,
+} from '../lib/cdoSupabaseSync';
 
 export interface CODCompany {
   id: string;
@@ -381,6 +400,24 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(STORAGE_KEYS.version, '2');
   }, []);
 
+  // Silent Supabase hydration on mount
+  useEffect(() => {
+    let active = true;
+    fetchAllCDOFromSupabase().then((remote) => {
+      if (!active || !remote) return;
+      setCompanies(remote.companies);
+      setClients(remote.clients);
+      setRawCostCenters(remote.costCenters);
+      setBaseAccounts(remote.accounts);
+      if (remote.concepts.length > 0) setConcepts(remote.concepts);
+      setRawIncomes(remote.incomes);
+      setRawExpenses(remote.expenses);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.companies, JSON.stringify(companies));
   }, [companies]);
@@ -513,6 +550,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setRawIncomes((prev) => [...prev, record]);
+    void dbUpsertIncome(record).catch(console.error);
     setLastSync({
       id: `sync-${Date.now()}`,
       kind: 'ingreso',
@@ -535,26 +573,27 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const total = round2(subtotal + iva);
 
     setRawIncomes((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              concept: input.concept.trim(),
-              date: input.date,
-              companyId: company?.id || input.companyId,
-              companyName: company?.name || input.companyId,
-              clientId: client?.id,
-              clientName: client?.name,
-              projectId: project?.id,
-              projectName: project?.name,
-              accountId: account?.id || input.accountId,
-              accountName: account?.name || input.accountId,
-              subtotal,
-              iva,
-              total,
-            }
-          : item
-      )
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const updated: CODIncome = {
+          ...item,
+          concept: input.concept.trim(),
+          date: input.date,
+          companyId: company?.id || input.companyId,
+          companyName: company?.name || input.companyId,
+          clientId: client?.id,
+          clientName: client?.name,
+          projectId: project?.id,
+          projectName: project?.name,
+          accountId: account?.id || input.accountId,
+          accountName: account?.name || input.accountId,
+          subtotal,
+          iva,
+          total,
+        };
+        void dbUpsertIncome(updated).catch(console.error);
+        return updated;
+      })
     );
 
     setLastSync({
@@ -568,6 +607,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteIncome = (id: string) => {
     setRawIncomes((prev) => prev.filter((item) => item.id !== id));
+    void dbDeleteIncome(id).catch(console.error);
   };
 
   // EXPENSES CRUD
@@ -601,6 +641,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setRawExpenses((prev) => [...prev, record]);
+    void dbUpsertExpense(record).catch(console.error);
     setLastSync({
       id: `sync-${Date.now()}`,
       kind: 'egreso',
@@ -622,25 +663,26 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const total = round2(subtotal + iva);
 
     setRawExpenses((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              concept: input.concept.trim(),
-              date: input.date,
-              projectId: project?.id || input.projectId,
-              projectName: project?.name || item.projectName,
-              companyId: company?.id || input.companyId,
-              companyName: company?.name || item.companyName,
-              accountId: account?.id || input.accountId,
-              accountName: account?.name || item.accountName,
-              subtotal,
-              iva,
-              total,
-              capturedVia: input.capturedVia,
-            }
-          : item
-      )
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const updated: CODExpense = {
+          ...item,
+          concept: input.concept.trim(),
+          date: input.date,
+          projectId: project?.id || input.projectId,
+          projectName: project?.name || item.projectName,
+          companyId: company?.id || input.companyId,
+          companyName: company?.name || item.companyName,
+          accountId: account?.id || input.accountId,
+          accountName: account?.name || item.accountName,
+          subtotal,
+          iva,
+          total,
+          capturedVia: input.capturedVia,
+        };
+        void dbUpsertExpense(updated).catch(console.error);
+        return updated;
+      })
     );
 
     setLastSync({
@@ -654,6 +696,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteExpense = (id: string) => {
     setRawExpenses((prev) => prev.filter((item) => item.id !== id));
+    void dbDeleteExpense(id).catch(console.error);
   };
 
   // COMPANIES (S.A.) CRUD
@@ -666,6 +709,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       rfc: rfc?.trim() || undefined,
     };
     setCompanies((prev) => [...prev, newCo]);
+    void dbUpsertCompany(newCo).catch(console.error);
     setLastSync({
       id: `sync-${Date.now()}`,
       kind: 'catalogo',
@@ -678,13 +722,19 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateCompany = (id: string, data: Partial<Omit<CODCompany, 'id'>>) => {
     setCompanies((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, ...data } : c))
+      prev.map((c) => {
+        if (c.id !== id) return c;
+        const updated = { ...c, ...data };
+        void dbUpsertCompany(updated).catch(console.error);
+        return updated;
+      })
     );
   };
 
   const deleteCompany = (id: string): boolean => {
     if (companies.length <= 1) return false;
     setCompanies((prev) => prev.filter((c) => c.id !== id));
+    void dbDeleteCompany(id).catch(console.error);
     if (selectedCompanyFilter === id) setSelectedCompanyFilter('ALL');
     return true;
   };
@@ -698,6 +748,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       contact: contact?.trim() || undefined,
     };
     setClients((prev) => [...prev, newClient]);
+    void dbUpsertClient(newClient).catch(console.error);
     setLastSync({
       id: `sync-${Date.now()}`,
       kind: 'catalogo',
@@ -709,11 +760,19 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateClient = (id: string, data: Partial<Omit<CODClient, 'id'>>) => {
-    setClients((prev) => prev.map((c) => (c.id === id ? { ...c, ...data } : c)));
+    setClients((prev) =>
+      prev.map((c) => {
+        if (c.id !== id) return c;
+        const updated = { ...c, ...data };
+        void dbUpsertClient(updated).catch(console.error);
+        return updated;
+      })
+    );
   };
 
   const deleteClient = (id: string) => {
     setClients((prev) => prev.filter((c) => c.id !== id));
+    void dbDeleteClient(id).catch(console.error);
   };
 
   // COST CENTERS (PROJECTS / OBRAS) CRUD
@@ -727,6 +786,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       clientName: cli?.name,
     };
     setRawCostCenters((prev) => [...prev, newObra]);
+    void dbUpsertProject(newObra).catch(console.error);
     setLastSync({
       id: `sync-${Date.now()}`,
       kind: 'catalogo',
@@ -739,12 +799,18 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateCostCenter = (id: string, data: Partial<Omit<CODCostCenter, 'id'>>) => {
     setRawCostCenters((prev) =>
-      prev.map((o) => (o.id === id ? { ...o, ...data } : o))
+      prev.map((o) => {
+        if (o.id !== id) return o;
+        const updated = { ...o, ...data };
+        void dbUpsertProject(updated).catch(console.error);
+        return updated;
+      })
     );
   };
 
   const deleteCostCenter = (id: string) => {
     setRawCostCenters((prev) => prev.filter((o) => o.id !== id));
+    void dbDeleteProject(id).catch(console.error);
   };
 
   // ACCOUNTS (BANKS & CASH) CRUD
@@ -758,6 +824,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       initialBalance: round2(Math.max(0, input.initialBalance)),
     };
     setBaseAccounts((prev) => [...prev, newAcc]);
+    void dbUpsertAccount(newAcc).catch(console.error);
     const companyName = companies.find((c) => c.id === input.companyId)?.name || input.companyId;
     setLastSync({
       id: `sync-${Date.now()}`,
@@ -771,18 +838,19 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateAccount = (id: string, data: Partial<Omit<CODAccount, 'id'>>) => {
     setBaseAccounts((prev) =>
-      prev.map((acc) =>
-        acc.id === id
-          ? {
-              ...acc,
-              ...data,
-              initialBalance:
-                data.initialBalance !== undefined
-                  ? round2(Math.max(0, data.initialBalance))
-                  : acc.initialBalance,
-            }
-          : acc
-      )
+      prev.map((acc) => {
+        if (acc.id !== id) return acc;
+        const updated: CODAccount = {
+          ...acc,
+          ...data,
+          initialBalance:
+            data.initialBalance !== undefined
+              ? round2(Math.max(0, data.initialBalance))
+              : acc.initialBalance,
+        };
+        void dbUpsertAccount(updated).catch(console.error);
+        return updated;
+      })
     );
   };
 
@@ -793,6 +861,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteAccount = (id: string): boolean => {
     if (baseAccounts.length <= 1) return false;
     setBaseAccounts((prev) => prev.filter((a) => a.id !== id));
+    void dbDeleteAccount(id).catch(console.error);
     return true;
   };
 
@@ -804,11 +873,13 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       kind,
     };
     setConcepts((prev) => [...prev, newConcept]);
+    void dbUpsertConcept(newConcept).catch(console.error);
     return newConcept;
   };
 
   const deleteConcept = (id: string) => {
     setConcepts((prev) => prev.filter((c) => c.id !== id));
+    void dbDeleteConcept(id).catch(console.error);
   };
 
   // RESET / START FROM ZERO
@@ -816,6 +887,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setRawIncomes([]);
     setRawExpenses([]);
     setBaseAccounts((prev) => prev.map((a) => ({ ...a, initialBalance: 0 })));
+    void dbClearMovementsToZero().catch(console.error);
     setLastSync({
       id: `sync-${Date.now()}`,
       kind: 'catalogo',
@@ -831,22 +903,30 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       name: 'Mi Empresa S.A.',
       shortName: 'Empresa 1',
     };
+    const primaryAcc: CODAccount = {
+      id: 'acc-principal',
+      name: 'Cuenta Principal',
+      accountNumber: '0001',
+      type: 'banco',
+      companyId: primarySa.id,
+      initialBalance: 0,
+    };
     setCompanies([primarySa]);
     setClients([]);
     setRawCostCenters([]);
-    setBaseAccounts([
-      {
-        id: 'acc-principal',
-        name: 'Cuenta Principal',
-        accountNumber: '0001',
-        type: 'banco',
-        companyId: primarySa.id,
-        initialBalance: 0,
-      },
-    ]);
+    setBaseAccounts([primaryAcc]);
     setRawIncomes([]);
     setRawExpenses([]);
     setSelectedCompanyFilter('ALL');
+    void dbSyncFullSnapshot({
+      companies: [primarySa],
+      clients: [],
+      costCenters: [],
+      accounts: [primaryAcc],
+      concepts,
+      incomes: [],
+      expenses: [],
+    }).catch(console.error);
     setLastSync({
       id: `sync-${Date.now()}`,
       kind: 'catalogo',
@@ -866,6 +946,15 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setRawExpenses(INITIAL_COD_EXPENSES);
     setSelectedCompanyFilter('ALL');
     setLastSync(null);
+    void dbSyncFullSnapshot({
+      companies: INITIAL_COD_COMPANIES,
+      clients: INITIAL_COD_CLIENTS,
+      costCenters: INITIAL_COD_COST_CENTERS,
+      accounts: INITIAL_COD_ACCOUNTS,
+      concepts: INITIAL_COD_CONCEPTS,
+      incomes: INITIAL_COD_INCOMES,
+      expenses: INITIAL_COD_EXPENSES,
+    }).catch(console.error);
   };
 
   return (
