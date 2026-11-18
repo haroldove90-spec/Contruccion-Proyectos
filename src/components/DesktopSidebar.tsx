@@ -190,17 +190,41 @@ export const DesktopSidebar: React.FC = () => {
       </div>
 
       {!collapsed && lastSync && (
-        <div className="p-3 mx-2 mb-3 bg-emerald-50 border border-emerald-200/80 rounded-xl">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-800">
-            <Zap className="w-3.5 h-3.5 text-emerald-600" />
+        <div
+          className={`p-3 mx-2 mb-3 border rounded-xl ${
+            lastSync.isError
+              ? 'bg-rose-50 border-rose-200/80'
+              : 'bg-emerald-50 border-emerald-200/80'
+          }`}
+        >
+          <div
+            className={`flex items-center gap-1.5 text-xs font-bold ${
+              lastSync.isError ? 'text-rose-800' : 'text-emerald-800'
+            }`}
+          >
+            <Zap
+              className={`w-3.5 h-3.5 ${
+                lastSync.isError ? 'text-rose-600' : 'text-emerald-600'
+              }`}
+            />
             <span>{lastSync.title}</span>
           </div>
-          <p className="text-[11px] text-emerald-700 mt-1 line-clamp-2">
+          <p
+            className={`text-[11px] mt-1 line-clamp-2 ${
+              lastSync.isError ? 'text-rose-700' : 'text-emerald-700'
+            }`}
+          >
             {lastSync.detail}
           </p>
-          <div className="mt-1 flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
+          <div
+            className={`mt-1 flex items-center gap-1 text-[10px] font-medium ${
+              lastSync.isError ? 'text-rose-600' : 'text-emerald-600'
+            }`}
+          >
             <ShieldCheck className="w-3 h-3" />
-            <span>Sincronización en tiempo real</span>
+            <span>
+              {lastSync.isError ? 'Error al guardar en Supabase' : 'Sincronización en tiempo real'}
+            </span>
           </div>
         </div>
       )}

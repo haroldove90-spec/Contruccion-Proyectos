@@ -57,6 +57,10 @@ export const CODPerfilView: React.FC = () => {
     text: string;
   } | null>(null);
 
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [savingTeam, setSavingTeam] = useState(false);
+
   useEffect(() => {
     if (currentUser) {
       setFullName(currentUser.fullName);
@@ -71,26 +75,29 @@ export const CODPerfilView: React.FC = () => {
 
   const isAdmin = currentUser.role === 'admin';
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = updateCurrentUserProfile({
+    setSavingProfile(true);
+    setProfileFeedback(null);
+    const res = await updateCurrentUserProfile({
       fullName,
       username,
       email,
       phone,
       position,
     });
+    setSavingProfile(false);
     if (res.ok) {
       setProfileFeedback({
         type: 'ok',
-        text: 'Datos personales guardados y sincronizados.',
+        text: 'Datos personales guardados y confirmados en Supabase.',
       });
     } else {
       setProfileFeedback({ type: 'error', text: res.error });
     }
   };
 
-  const handleSavePassword = (e: React.FormEvent) => {
+  const handleSavePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
       setPasswordFeedback({
@@ -99,23 +106,28 @@ export const CODPerfilView: React.FC = () => {
       });
       return;
     }
-    const res = changeCurrentUserPassword(currentPassword, newPassword);
+    setSavingPassword(true);
+    setPasswordFeedback(null);
+    const res = await changeCurrentUserPassword(currentPassword, newPassword);
+    setSavingPassword(false);
     if (res.ok) {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       setPasswordFeedback({
         type: 'ok',
-        text: 'Contraseña actualizada correctamente.',
+        text: 'Contraseña actualizada y guardada en Supabase.',
       });
     } else {
       setPasswordFeedback({ type: 'error', text: res.error });
     }
   };
 
-  const handleSaveTeamUser = (e: React.FormEvent) => {
+  const handleSaveTeamUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = upsertTeamUser({
+    setSavingTeam(true);
+    setTeamFeedback(null);
+    const res = await upsertTeamUser({
       id: editingUserId || undefined,
       fullName: teamFullName,
       username: teamUsername,
@@ -123,12 +135,13 @@ export const CODPerfilView: React.FC = () => {
       password: teamPassword || undefined,
       position: teamPosition,
     });
+    setSavingTeam(false);
     if (res.ok) {
       setTeamFeedback({
         type: 'ok',
         text: editingUserId
-          ? `Usuario @${res.user.username} actualizado.`
-          : `Usuario @${res.user.username} creado correctamente.`,
+          ? `Usuario @${res.user.username} actualizado en Supabase.`
+          : `Usuario @${res.user.username} creado y guardado en Supabase.`,
       });
       setEditingUserId(null);
       setTeamFullName('');
@@ -137,6 +150,13 @@ export const CODPerfilView: React.FC = () => {
       setTeamPassword('');
       setTeamPosition('');
     } else {
+      setTeamFeedback({ type: 'error', text: res.error });
+    }
+  };
+
+  const handleDeleteTeamUser = async (id: string) => {
+    const res = await deleteTeamUser(id);
+    if (!res.ok) {
       setTeamFeedback({ type: 'error', text: res.error });
     }
   };
@@ -306,10 +326,11 @@ export const CODPerfilView: React.FC = () => {
           <div className="pt-2 flex justify-end">
             <button
               type="submit"
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              disabled={savingProfile}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
             >
               <Save className="w-3.5 h-3.5 text-amber-400" />
-              <span>Guardar Datos Personales</span>
+              <span>{savingProfile ? 'Guardando...' : 'Guardar Datos Personales'}</span>
             </button>
           </div>
         </form>
@@ -397,10 +418,11 @@ export const CODPerfilView: React.FC = () => {
           <div className="pt-2 flex justify-end">
             <button
               type="submit"
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#0B2545] hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+              disabled={savingPassword}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#0B2545] hover:bg-slate-800 disabled:opacity-60 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
             >
               <Lock className="w-3.5 h-3.5 text-amber-400" />
-              <span>Actualizar Contraseña</span>
+              <span>{savingPassword ? 'Actualizando...' : 'Actualizar Contraseña'}</span>
             </button>
           </div>
         </form>
@@ -515,10 +537,11 @@ export const CODPerfilView: React.FC = () => {
               <div className="flex gap-2">
                 <button
                   type="submit"
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl cursor-pointer h-[34px]"
+                  disabled={savingTeam}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-60 text-white text-xs font-bold rounded-xl cursor-pointer disabled:cursor-not-allowed h-[34px]"
                 >
                   <UserPlus className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{editingUserId ? 'Guardar' : 'Alta'}</span>
+                  <span>{savingTeam ? 'Guardando...' : editingUserId ? 'Guardar' : 'Alta'}</span>
                 </button>
                 {editingUserId && (
                   <button
@@ -585,7 +608,7 @@ export const CODPerfilView: React.FC = () => {
                             <button
                               type="button"
                               disabled={isSelf}
-                              onClick={() => deleteTeamUser(u.id)}
+                              onClick={() => void handleDeleteTeamUser(u.id)}
                               title={isSelf ? 'No puedes eliminar tu propio usuario' : 'Eliminar usuario'}
                               className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer disabled:opacity-30"
                             >

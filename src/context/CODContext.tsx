@@ -185,6 +185,7 @@ export interface CODSyncBanner {
   kind: 'ingreso' | 'egreso' | 'cuenta' | 'catalogo' | 'perfil' | 'prestamo' | 'notificacion';
   title: string;
   detail: string;
+  isError?: boolean;
   timestamp: number;
 }
 
@@ -488,11 +489,11 @@ interface CODContextType {
     email?: string;
     phone?: string;
     position?: string;
-  }) => { ok: true } | { ok: false; error: string };
+  }) => Promise<{ ok: true } | { ok: false; error: string }>;
   changeCurrentUserPassword: (
     currentPassword: string,
     newPassword: string
-  ) => { ok: true } | { ok: false; error: string };
+  ) => Promise<{ ok: true } | { ok: false; error: string }>;
   upsertTeamUser: (data: {
     id?: string;
     fullName: string;
@@ -502,8 +503,8 @@ interface CODContextType {
     email?: string;
     phone?: string;
     position?: string;
-  }) => { ok: true; user: CDOUser } | { ok: false; error: string };
-  deleteTeamUser: (id: string) => boolean;
+  }) => Promise<{ ok: true; user: CDOUser } | { ok: false; error: string }>;
+  deleteTeamUser: (id: string) => Promise<{ ok: true } | { ok: false; error: string }>;
 
   companies: CODCompany[];
   clients: CODClient[];
@@ -655,6 +656,21 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
   const [lastSync, setLastSync] = useState<CODSyncBanner | null>(null);
 
+  const persistToSupabase = (promise: Promise<unknown>, errorTitle: string) => {
+    void promise.catch((err) => {
+      const msg = err instanceof Error ? err.message : 'Error de conexión con Supabase';
+      console.error(`${errorTitle}:`, err);
+      setLastSync({
+        id: `sync-err-${Date.now()}`,
+        kind: 'catalogo',
+        title: errorTitle,
+        detail: msg,
+        isError: true,
+        timestamp: Date.now(),
+      });
+    });
+  };
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.version, '2');
   }, []);
@@ -664,7 +680,11 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let active = true;
     fetchAllCDOFromSupabase().then((remote) => {
       if (!active || !remote) return;
-      if (remote.users.length > 0) setUsers(remote.users);
+      if (remote.users.length > 0) {
+        setUsers(remote.users);
+      }
+      if (!remote.hasCoreRows) return;
+
       setCompanies(remote.companies);
       setClients(remote.clients);
       setRawCostCenters(remote.costCenters);
@@ -678,8 +698,14 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           approvalStatus: exp.approvalStatus || 'autorizado',
         }))
       );
-      if (remote.loansCredits.length > 0) setRawLoans(remote.loansCredits);
-      if (remote.notifications.length > 0) setNotifications(remote.notifications);
+      if (remote.loansLoaded) {
+        if (remote.loansCredits.length > 0 || (remote.incomes.length === 0 && remote.expenses.length === 0)) {
+          setRawLoans(remote.loansCredits);
+        }
+      }
+      if (remote.notificationsLoaded) {
+        setNotifications(remote.notifications);
+      }
     });
     return () => {
       active = false;
@@ -763,13 +789,13 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentUserId(null);
   };
 
-  const updateCurrentUserProfile = (data: {
+  const updateCurrentUserProfile = async (data: {
     fullName: string;
     username: string;
     email?: string;
     phone?: string;
     position?: string;
-  }): { ok: true } | { ok: false; error: string } => {
+  }): Promise<{ ok: true } | { ok: false; error: string }> => {
     if (!currentUser) return { ok: false, error: 'No hay sesión activa.' };
     const cleanFullName = data.fullName.trim();
     const cleanUsername = data.username.trim().toLowerCase();
@@ -792,22 +818,28 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       position: data.position?.trim() || '',
     };
 
-    setUsers((prev) => prev.map((u) => (u.id === currentUser.id ? updated : u)));
-    void dbUpsertUser(updated).catch(console.error);
-    setLastSync({
-      id: `sync-${Date.now()}`,
-      kind: 'perfil',
-      title: 'Perfil actualizado',
-      detail: `${updated.fullName} (@${updated.username}) guardado correctamente`,
-      timestamp: Date.now(),
-    });
-    return { ok: true };
+    try {
+      const saved = await dbUpsertUser(updated);
+      setUsers((prev) => prev.map((u) => (u.id === currentUser.id ? saved : u)));
+      setLastSync({
+        id: `sync-${Date.now()}`,
+        kind: 'perfil',
+        title: 'Perfil actualizado en Supabase',
+        detail: `${saved.fullName} (@${saved.username}) guardado correctamente`,
+        timestamp: Date.now(),
+      });
+      return { ok: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error al guardar en Supabase.';
+      console.error('Error guardando perfil en Supabase:', err);
+      return { ok: false, error: `No se pudo guardar en Supabase: ${msg}` };
+    }
   };
 
-  const changeCurrentUserPassword = (
+  const changeCurrentUserPassword = async (
     currentPassword: string,
     newPassword: string
-  ): { ok: true } | { ok: false; error: string } => {
+  ): Promise<{ ok: true } | { ok: false; error: string }> => {
     if (!currentUser) return { ok: false, error: 'No hay sesión activa.' };
     if (sha256Hex(currentPassword) !== currentUser.passwordHash) {
       return { ok: false, error: 'La contraseña actual no es correcta.' };
@@ -820,19 +852,26 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...currentUser,
       passwordHash: sha256Hex(newPassword),
     };
-    setUsers((prev) => prev.map((u) => (u.id === currentUser.id ? updated : u)));
-    void dbUpsertUser(updated).catch(console.error);
-    setLastSync({
-      id: `sync-${Date.now()}`,
-      kind: 'perfil',
-      title: 'Contraseña actualizada',
-      detail: `Credencial segura guardada para @${updated.username}`,
-      timestamp: Date.now(),
-    });
-    return { ok: true };
+
+    try {
+      const saved = await dbUpsertUser(updated);
+      setUsers((prev) => prev.map((u) => (u.id === currentUser.id ? saved : u)));
+      setLastSync({
+        id: `sync-${Date.now()}`,
+        kind: 'perfil',
+        title: 'Contraseña actualizada en Supabase',
+        detail: `Credencial segura guardada para @${saved.username}`,
+        timestamp: Date.now(),
+      });
+      return { ok: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error al guardar contraseña.';
+      console.error('Error guardando contraseña en Supabase:', err);
+      return { ok: false, error: `No se pudo actualizar en Supabase: ${msg}` };
+    }
   };
 
-  const upsertTeamUser = (data: {
+  const upsertTeamUser = async (data: {
     id?: string;
     fullName: string;
     username: string;
@@ -841,7 +880,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     email?: string;
     phone?: string;
     position?: string;
-  }): { ok: true; user: CDOUser } | { ok: false; error: string } => {
+  }): Promise<{ ok: true; user: CDOUser } | { ok: false; error: string }> => {
     const cleanFullName = data.fullName.trim();
     const cleanUsername = data.username.trim().toLowerCase();
     if (!cleanFullName || !cleanUsername) {
@@ -872,23 +911,35 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       position: data.position?.trim() || '',
     };
 
-    setUsers((prev) =>
-      existing ? prev.map((u) => (u.id === existing.id ? record : u)) : [...prev, record]
-    );
-    void dbUpsertUser(record).catch(console.error);
-    return { ok: true, user: record };
+    try {
+      const saved = await dbUpsertUser(record);
+      setUsers((prev) =>
+        existing ? prev.map((u) => (u.id === existing.id ? saved : u)) : [...prev, saved]
+      );
+      return { ok: true, user: saved };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error al guardar usuario.';
+      console.error('Error guardando usuario en Supabase:', err);
+      return { ok: false, error: `No se pudo guardar en Supabase: ${msg}` };
+    }
   };
 
-  const deleteTeamUser = (id: string): boolean => {
-    if (currentUser?.id === id) return false;
+  const deleteTeamUser = async (id: string): Promise<{ ok: true } | { ok: false; error: string }> => {
+    if (currentUser?.id === id) return { ok: false, error: 'No puedes eliminar tu propio usuario.' };
     const target = users.find((u) => u.id === id);
-    if (!target) return false;
+    if (!target) return { ok: false, error: 'Usuario no encontrado.' };
     if (target.role === 'admin' && users.filter((u) => u.role === 'admin').length <= 1) {
-      return false;
+      return { ok: false, error: 'Debe permanecer al menos un administrador.' };
     }
-    setUsers((prev) => prev.filter((u) => u.id !== id));
-    void dbDeleteUser(id).catch(console.error);
-    return true;
+    try {
+      await dbDeleteUser(id);
+      setUsers((prev) => prev.filter((u) => u.id !== id));
+      return { ok: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error al eliminar usuario.';
+      console.error('Error eliminando usuario en Supabase:', err);
+      return { ok: false, error: `No se pudo eliminar en Supabase: ${msg}` };
+    }
   };
 
   // Resolve dynamic relational names so catalog edits reflect immediately everywhere
@@ -1050,7 +1101,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setRawIncomes((prev) => [...prev, record]);
-    void dbUpsertIncome(record).catch(console.error);
+    persistToSupabase(dbUpsertIncome(record), 'Error al guardar ingreso en Supabase');
     setLastSync({
       id: `sync-${Date.now()}`,
       kind: 'ingreso',
@@ -1063,38 +1114,41 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateIncome = (id: string, input: AddCODIncomeInput) => {
+    const existing = rawIncomes.find((item) => item.id === id);
+    if (!existing) return;
+
     const company = companies.find((c) => c.id === input.companyId) || companies[0];
     const account = baseAccounts.find((a) => a.id === input.accountId) || baseAccounts[0];
     const project = input.projectId ? costCenters.find((p) => p.id === input.projectId) : undefined;
-    const client = input.clientId ? clients.find((c) => c.id === input.clientId) : undefined;
+    const client = input.clientId
+      ? clients.find((c) => c.id === input.clientId)
+      : project?.clientId
+      ? clients.find((c) => c.id === project.clientId)
+      : undefined;
 
     const subtotal = round2(Math.max(0, input.subtotal));
     const iva = round2(subtotal * 0.16);
     const total = round2(subtotal + iva);
 
-    setRawIncomes((prev) =>
-      prev.map((item) => {
-        if (item.id !== id) return item;
-        const updated: CODIncome = {
-          ...item,
-          concept: input.concept.trim(),
-          date: input.date,
-          companyId: company?.id || input.companyId,
-          companyName: company?.name || input.companyId,
-          clientId: client?.id,
-          clientName: client?.name,
-          projectId: project?.id,
-          projectName: project?.name,
-          accountId: account?.id || input.accountId,
-          accountName: account?.name || input.accountId,
-          subtotal,
-          iva,
-          total,
-        };
-        void dbUpsertIncome(updated).catch(console.error);
-        return updated;
-      })
-    );
+    const updated: CODIncome = {
+      ...existing,
+      concept: input.concept.trim(),
+      date: input.date,
+      companyId: company?.id || input.companyId,
+      companyName: company?.name || input.companyId,
+      clientId: client?.id,
+      clientName: client?.name,
+      projectId: project?.id,
+      projectName: project?.name,
+      accountId: account?.id || input.accountId,
+      accountName: account?.name || input.accountId,
+      subtotal,
+      iva,
+      total,
+    };
+
+    setRawIncomes((prev) => prev.map((item) => (item.id === id ? updated : item)));
+    persistToSupabase(dbUpsertIncome(updated), 'Error al actualizar ingreso en Supabase');
 
     setLastSync({
       id: `sync-${Date.now()}`,
@@ -1107,7 +1161,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteIncome = (id: string) => {
     setRawIncomes((prev) => prev.filter((item) => item.id !== id));
-    void dbDeleteIncome(id).catch(console.error);
+    persistToSupabase(dbDeleteIncome(id), 'Error al eliminar ingreso en Supabase');
   };
 
   // EXPENSES CRUD + LOAN SYNC + NOTIFICATION WORKFLOW
@@ -1166,24 +1220,21 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         timestamp: now,
       };
       setRawLoans((prev) => [newLoan, ...prev]);
-      void dbUpsertLoanCredit(newLoan).catch(console.error);
+      persistToSupabase(dbUpsertLoanCredit(newLoan), 'Error al guardar préstamo en Supabase');
     } else if (expenseKind === 'abono_prestamo' && linkedLoanId && isAdmin) {
-      // Immediately apply payment when Admin records a payment expense
-      setRawLoans((prev) =>
-        prev.map((loan) => {
-          if (loan.id !== linkedLoanId) return loan;
-          const nextPaid = round2(loan.paidAmount + total);
-          const nextRemaining = round2(Math.max(0, loan.originalAmount - nextPaid));
-          const updatedLoan: CDOLoanCredit = {
-            ...loan,
-            paidAmount: nextPaid,
-            remainingAmount: nextRemaining,
-            status: nextRemaining <= 0 ? 'liquidado' : 'activo',
-          };
-          void dbUpsertLoanCredit(updatedLoan).catch(console.error);
-          return updatedLoan;
-        })
-      );
+      const targetLoan = rawLoans.find((l) => l.id === linkedLoanId);
+      if (targetLoan) {
+        const nextPaid = round2(targetLoan.paidAmount + total);
+        const nextRemaining = round2(Math.max(0, targetLoan.originalAmount - nextPaid));
+        const updatedLoan: CDOLoanCredit = {
+          ...targetLoan,
+          paidAmount: nextPaid,
+          remainingAmount: nextRemaining,
+          status: nextRemaining <= 0 ? 'liquidado' : 'activo',
+        };
+        setRawLoans((prev) => prev.map((loan) => (loan.id === linkedLoanId ? updatedLoan : loan)));
+        persistToSupabase(dbUpsertLoanCredit(updatedLoan), 'Error al actualizar abono en Supabase');
+      }
     }
 
     const record: CODExpense = {
@@ -1215,7 +1266,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setRawExpenses((prev) => [...prev, record]);
-    void dbUpsertExpense(record).catch(console.error);
+    persistToSupabase(dbUpsertExpense(record), 'Error al guardar egreso en Supabase');
 
     if (!isAdmin) {
       const kindLabel =
@@ -1258,7 +1309,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         timestamp: now,
       };
       setNotifications((prev) => [notif, ...prev]);
-      void dbUpsertNotification(notif).catch(console.error);
+      persistToSupabase(dbUpsertNotification(notif), 'Error al guardar notificación en Supabase');
 
       setLastSync({
         id: `sync-${now}`,
@@ -1289,94 +1340,91 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const approveExpense = (expenseId: string) => {
     if (currentUser?.role !== 'admin') return;
+    const rawTarget = rawExpenses.find((e) => e.id === expenseId);
     const target = expenses.find((e) => e.id === expenseId);
-    if (!target || target.approvalStatus === 'autorizado') return;
+    if (!rawTarget || !target || rawTarget.approvalStatus === 'autorizado') return;
     const now = Date.now();
 
-    setRawExpenses((prev) =>
-      prev.map((item) => {
-        if (item.id !== expenseId) return item;
-        const updated: CODExpense = {
-          ...item,
-          approvalStatus: 'autorizado',
-          reviewedByUserId: currentUser.id,
-          reviewedByName: currentUser.fullName,
-          reviewedAt: now,
-          rejectionReason: undefined,
-        };
-        void dbUpsertExpense(updated).catch(console.error);
-        return updated;
-      })
-    );
+    const updatedExpense: CODExpense = {
+      ...rawTarget,
+      approvalStatus: 'autorizado',
+      reviewedByUserId: currentUser.id,
+      reviewedByName: currentUser.fullName,
+      reviewedAt: now,
+      rejectionReason: undefined,
+    };
+    setRawExpenses((prev) => prev.map((item) => (item.id === expenseId ? updatedExpense : item)));
+    persistToSupabase(dbUpsertExpense(updatedExpense), 'Error al autorizar egreso en Supabase');
 
     if (target.linkedLoanId) {
-      setRawLoans((prev) =>
-        prev.map((loan) => {
-          if (loan.id !== target.linkedLoanId) return loan;
-          if (target.expenseKind === 'abono_prestamo') {
-            const nextPaid = round2(loan.paidAmount + target.total);
-            const nextRem = round2(Math.max(0, loan.originalAmount - nextPaid));
-            const updatedLoan: CDOLoanCredit = {
-              ...loan,
-              paidAmount: nextPaid,
-              remainingAmount: nextRem,
-              status: nextRem <= 0 ? 'liquidado' : 'activo',
-            };
-            void dbUpsertLoanCredit(updatedLoan).catch(console.error);
-            return updatedLoan;
-          }
-          const updatedLoan: CDOLoanCredit = {
-            ...loan,
-            status: loan.remainingAmount <= 0 ? 'liquidado' : 'activo',
-          };
-          void dbUpsertLoanCredit(updatedLoan).catch(console.error);
-          return updatedLoan;
-        })
-      );
+      const targetLoan = rawLoans.find((l) => l.id === target.linkedLoanId);
+      if (targetLoan) {
+        const updatedLoan: CDOLoanCredit =
+          target.expenseKind === 'abono_prestamo'
+            ? (() => {
+                const nextPaid = round2(targetLoan.paidAmount + target.total);
+                const nextRem = round2(Math.max(0, targetLoan.originalAmount - nextPaid));
+                return {
+                  ...targetLoan,
+                  paidAmount: nextPaid,
+                  remainingAmount: nextRem,
+                  status: nextRem <= 0 ? 'liquidado' : 'activo',
+                };
+              })()
+            : {
+                ...targetLoan,
+                status: targetLoan.remainingAmount <= 0 ? 'liquidado' : 'activo',
+              };
+        setRawLoans((prev) => prev.map((l) => (l.id === targetLoan.id ? updatedLoan : l)));
+        persistToSupabase(dbUpsertLoanCredit(updatedLoan), 'Error al actualizar préstamo en Supabase');
+      }
     }
 
-    setNotifications((prev) => {
-      const updatedExisting = prev.map((n) => {
-        if (n.expenseId === expenseId && n.actionStatus === 'pendiente') {
-          const nextN: CDONotification = {
-            ...n,
-            actionStatus: 'autorizado',
-            readByUserIds: n.readByUserIds.includes(currentUser.id)
-              ? n.readByUserIds
-              : [...n.readByUserIds, currentUser.id],
-          };
-          void dbUpsertNotification(nextN).catch(console.error);
-          return nextN;
-        }
-        return n;
-      });
-
-      const replyNotif: CDONotification = {
-        id: `notif-res-${now}`,
-        type: 'egreso_autorizado',
-        targetRole: 'administracion',
-        title: `Egreso #${target.movNumber} Autorizado`,
-        message: `${currentUser.fullName} autorizó la salida de $${target.total.toLocaleString(
-          'es-MX',
-          { minimumFractionDigits: 2 }
-        )} de ${target.accountName} (${target.concept}). Aplicado a bancos y módulos.`,
-        expenseId: target.id,
-        loanId: target.linkedLoanId,
-        amount: target.total,
-        accountName: target.accountName,
-        companyName: target.companyName,
-        projectName: target.projectName,
-        clientName: target.clientName,
-        expenseKind: target.expenseKind,
-        createdByUserId: currentUser.id,
-        createdByName: currentUser.fullName,
-        readByUserIds: [],
-        actionStatus: 'autorizado',
-        timestamp: now,
-      };
-      void dbUpsertNotification(replyNotif).catch(console.error);
-      return [replyNotif, ...updatedExisting];
+    const updatedNotifs: CDONotification[] = [];
+    const nextNotifList = notifications.map((n) => {
+      if (n.expenseId === expenseId && n.actionStatus === 'pendiente') {
+        const nextN: CDONotification = {
+          ...n,
+          actionStatus: 'autorizado',
+          readByUserIds: n.readByUserIds.includes(currentUser.id)
+            ? n.readByUserIds
+            : [...n.readByUserIds, currentUser.id],
+        };
+        updatedNotifs.push(nextN);
+        return nextN;
+      }
+      return n;
     });
+
+    const replyNotif: CDONotification = {
+      id: `notif-res-${now}`,
+      type: 'egreso_autorizado',
+      targetRole: 'administracion',
+      title: `Egreso #${target.movNumber} Autorizado`,
+      message: `${currentUser.fullName} autorizó la salida de $${target.total.toLocaleString(
+        'es-MX',
+        { minimumFractionDigits: 2 }
+      )} de ${target.accountName} (${target.concept}). Aplicado a bancos y módulos.`,
+      expenseId: target.id,
+      loanId: target.linkedLoanId,
+      amount: target.total,
+      accountName: target.accountName,
+      companyName: target.companyName,
+      projectName: target.projectName,
+      clientName: target.clientName,
+      expenseKind: target.expenseKind,
+      createdByUserId: currentUser.id,
+      createdByName: currentUser.fullName,
+      readByUserIds: [],
+      actionStatus: 'autorizado',
+      timestamp: now,
+    };
+
+    setNotifications([replyNotif, ...nextNotifList]);
+    updatedNotifs.forEach((n) =>
+      persistToSupabase(dbUpsertNotification(n), 'Error al actualizar notificación en Supabase')
+    );
+    persistToSupabase(dbUpsertNotification(replyNotif), 'Error al enviar notificación en Supabase');
 
     setLastSync({
       id: `sync-${now}`,
@@ -1389,91 +1437,91 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const rejectExpense = (expenseId: string, reason?: string) => {
     if (currentUser?.role !== 'admin') return;
+    const rawTarget = rawExpenses.find((e) => e.id === expenseId);
     const target = expenses.find((e) => e.id === expenseId);
-    if (!target || target.approvalStatus === 'rechazado') return;
+    if (!rawTarget || !target || rawTarget.approvalStatus === 'rechazado') return;
     const now = Date.now();
     const cleanReason = reason?.trim() || 'Rechazado por dirección / administración';
 
-    setRawExpenses((prev) =>
-      prev.map((item) => {
-        if (item.id !== expenseId) return item;
-        const updated: CODExpense = {
-          ...item,
-          approvalStatus: 'rechazado',
-          reviewedByUserId: currentUser.id,
-          reviewedByName: currentUser.fullName,
-          reviewedAt: now,
-          rejectionReason: cleanReason,
-        };
-        void dbUpsertExpense(updated).catch(console.error);
-        return updated;
-      })
-    );
+    const updatedExpense: CODExpense = {
+      ...rawTarget,
+      approvalStatus: 'rechazado',
+      reviewedByUserId: currentUser.id,
+      reviewedByName: currentUser.fullName,
+      reviewedAt: now,
+      rejectionReason: cleanReason,
+    };
+    setRawExpenses((prev) => prev.map((item) => (item.id === expenseId ? updatedExpense : item)));
+    persistToSupabase(dbUpsertExpense(updatedExpense), 'Error al rechazar egreso en Supabase');
 
     if (
       target.linkedLoanId &&
       (target.expenseKind === 'prestamo' || target.expenseKind === 'credito_bancario')
     ) {
-      setRawLoans((prev) =>
-        prev.map((loan) => {
-          if (loan.id !== target.linkedLoanId) return loan;
-          const updatedLoan: CDOLoanCredit = {
-            ...loan,
-            status: 'rechazado',
-          };
-          void dbUpsertLoanCredit(updatedLoan).catch(console.error);
-          return updatedLoan;
-        })
-      );
+      const targetLoan = rawLoans.find((l) => l.id === target.linkedLoanId);
+      if (targetLoan) {
+        const updatedLoan: CDOLoanCredit = {
+          ...targetLoan,
+          status: 'rechazado',
+        };
+        setRawLoans((prev) => prev.map((l) => (l.id === targetLoan.id ? updatedLoan : l)));
+        persistToSupabase(dbUpsertLoanCredit(updatedLoan), 'Error al actualizar préstamo en Supabase');
+      }
     }
 
-    setNotifications((prev) => {
-      const updatedExisting = prev.map((n) => {
-        if (n.expenseId === expenseId && n.actionStatus === 'pendiente') {
-          const nextN: CDONotification = {
-            ...n,
-            actionStatus: 'rechazado',
-            rejectionReason: cleanReason,
-            readByUserIds: n.readByUserIds.includes(currentUser.id)
-              ? n.readByUserIds
-              : [...n.readByUserIds, currentUser.id],
-          };
-          void dbUpsertNotification(nextN).catch(console.error);
-          return nextN;
-        }
-        return n;
-      });
-
-      const replyNotif: CDONotification = {
-        id: `notif-rej-${now}`,
-        type: 'egreso_rechazado',
-        targetRole: 'administracion',
-        title: `Egreso #${target.movNumber} Rechazado`,
-        message: `${currentUser.fullName} rechazó el movimiento de $${target.total.toLocaleString(
-          'es-MX',
-          { minimumFractionDigits: 2 }
-        )} en ${target.accountName}. Motivo: ${cleanReason}`,
-        expenseId: target.id,
-        loanId: target.linkedLoanId,
-        amount: target.total,
-        accountName: target.accountName,
-        companyName: target.companyName,
-        projectName: target.projectName,
-        clientName: target.clientName,
-        expenseKind: target.expenseKind,
-        createdByUserId: currentUser.id,
-        createdByName: currentUser.fullName,
-        readByUserIds: [],
-        actionStatus: 'rechazado',
-        rejectionReason: cleanReason,
-        timestamp: now,
-      };
-      void dbUpsertNotification(replyNotif).catch(console.error);
-      return [replyNotif, ...updatedExisting];
+    const updatedNotifs: CDONotification[] = [];
+    const nextNotifList = notifications.map((n) => {
+      if (n.expenseId === expenseId && n.actionStatus === 'pendiente') {
+        const nextN: CDONotification = {
+          ...n,
+          actionStatus: 'rechazado',
+          rejectionReason: cleanReason,
+          readByUserIds: n.readByUserIds.includes(currentUser.id)
+            ? n.readByUserIds
+            : [...n.readByUserIds, currentUser.id],
+        };
+        updatedNotifs.push(nextN);
+        return nextN;
+      }
+      return n;
     });
+
+    const replyNotif: CDONotification = {
+      id: `notif-rej-${now}`,
+      type: 'egreso_rechazado',
+      targetRole: 'administracion',
+      title: `Egreso #${target.movNumber} Rechazado`,
+      message: `${currentUser.fullName} rechazó el movimiento de $${target.total.toLocaleString(
+        'es-MX',
+        { minimumFractionDigits: 2 }
+      )} en ${target.accountName}. Motivo: ${cleanReason}`,
+      expenseId: target.id,
+      loanId: target.linkedLoanId,
+      amount: target.total,
+      accountName: target.accountName,
+      companyName: target.companyName,
+      projectName: target.projectName,
+      clientName: target.clientName,
+      expenseKind: target.expenseKind,
+      createdByUserId: currentUser.id,
+      createdByName: currentUser.fullName,
+      readByUserIds: [],
+      actionStatus: 'rechazado',
+      rejectionReason: cleanReason,
+      timestamp: now,
+    };
+
+    setNotifications([replyNotif, ...nextNotifList]);
+    updatedNotifs.forEach((n) =>
+      persistToSupabase(dbUpsertNotification(n), 'Error al actualizar notificación en Supabase')
+    );
+    persistToSupabase(dbUpsertNotification(replyNotif), 'Error al enviar notificación en Supabase');
   };
 
   const updateExpense = (id: string, input: AddCODExpenseInput) => {
+    const existing = rawExpenses.find((item) => item.id === id);
+    if (!existing) return;
+
     const company = companies.find((c) => c.id === input.companyId) || companies[0];
     const account = baseAccounts.find((a) => a.id === input.accountId) || baseAccounts[0];
     const project = costCenters.find((p) => p.id === input.projectId) || costCenters[0];
@@ -1487,31 +1535,60 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const iva = round2(subtotal * 0.16);
     const total = round2(subtotal + iva);
 
-    setRawExpenses((prev) =>
-      prev.map((item) => {
-        if (item.id !== id) return item;
-        const updated: CODExpense = {
-          ...item,
-          concept: input.concept.trim(),
-          date: input.date,
-          projectId: project?.id || input.projectId,
-          projectName: project?.name || item.projectName,
-          clientId: client?.id,
-          clientName: client?.name,
-          companyId: company?.id || input.companyId,
-          companyName: company?.name || item.companyName,
-          accountId: account?.id || input.accountId,
-          accountName: account?.name || item.accountName,
-          subtotal,
-          iva,
-          total,
-          capturedVia: input.capturedVia,
-          expenseKind: input.expenseKind || item.expenseKind || 'gasto',
+    const updated: CODExpense = {
+      ...existing,
+      concept: input.concept.trim(),
+      date: input.date,
+      projectId: project?.id || input.projectId,
+      projectName: project?.name || existing.projectName,
+      clientId: client?.id,
+      clientName: client?.name,
+      companyId: company?.id || input.companyId,
+      companyName: company?.name || existing.companyName,
+      accountId: account?.id || input.accountId,
+      accountName: account?.name || existing.accountName,
+      subtotal,
+      iva,
+      total,
+      capturedVia: input.capturedVia,
+      expenseKind: input.expenseKind || existing.expenseKind || 'gasto',
+    };
+
+    setRawExpenses((prev) => prev.map((item) => (item.id === id ? updated : item)));
+    persistToSupabase(dbUpsertExpense(updated), 'Error al actualizar egreso en Supabase');
+
+    if (
+      updated.linkedLoanId &&
+      (updated.expenseKind === 'prestamo' || updated.expenseKind === 'credito_bancario')
+    ) {
+      const linkedLoan = rawLoans.find((l) => l.id === updated.linkedLoanId);
+      if (linkedLoan) {
+        const nextRem = round2(Math.max(0, total - linkedLoan.paidAmount));
+        const syncedLoan: CDOLoanCredit = {
+          ...linkedLoan,
+          title: updated.concept,
+          date: updated.date,
+          companyId: updated.companyId,
+          companyName: updated.companyName,
+          clientId: updated.clientId,
+          clientName: updated.clientName,
+          projectId: updated.projectId,
+          projectName: updated.projectName,
+          accountId: updated.accountId,
+          accountName: updated.accountName,
+          originalAmount: total,
+          remainingAmount: nextRem,
+          status:
+            linkedLoan.status === 'pendiente_autorizacion' || linkedLoan.status === 'rechazado'
+              ? linkedLoan.status
+              : nextRem <= 0
+              ? 'liquidado'
+              : 'activo',
         };
-        void dbUpsertExpense(updated).catch(console.error);
-        return updated;
-      })
-    );
+        setRawLoans((prev) => prev.map((l) => (l.id === syncedLoan.id ? syncedLoan : l)));
+        persistToSupabase(dbUpsertLoanCredit(syncedLoan), 'Error al sincronizar préstamo en Supabase');
+      }
+    }
 
     setLastSync({
       id: `sync-${Date.now()}`,
@@ -1524,7 +1601,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteExpense = (id: string) => {
     setRawExpenses((prev) => prev.filter((item) => item.id !== id));
-    void dbDeleteExpense(id).catch(console.error);
+    persistToSupabase(dbDeleteExpense(id), 'Error al eliminar egreso en Supabase');
   };
 
   // LOANS & BANK CREDIT CARDS CRUD
@@ -1575,7 +1652,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setRawLoans((prev) => [record, ...prev]);
-    void dbUpsertLoanCredit(record).catch(console.error);
+    persistToSupabase(dbUpsertLoanCredit(record), 'Error al guardar préstamo en Supabase');
 
     if (!isAdmin) {
       const label = input.kind === 'prestamo' ? 'Préstamo' : 'Crédito / Tarjeta Bancaria';
@@ -1607,7 +1684,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         timestamp: now,
       };
       setNotifications((prev) => [notif, ...prev]);
-      void dbUpsertNotification(notif).catch(console.error);
+      persistToSupabase(dbUpsertNotification(notif), 'Error al guardar notificación en Supabase');
     }
 
     setLastSync({
@@ -1626,33 +1703,32 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateLoanCredit = (id: string, data: Partial<Omit<CDOLoanCredit, 'id'>>) => {
-    setRawLoans((prev) =>
-      prev.map((loan) => {
-        if (loan.id !== id) return loan;
-        const orig =
-          data.originalAmount !== undefined ? round2(Math.max(0, data.originalAmount)) : loan.originalAmount;
-        const paid =
-          data.paidAmount !== undefined ? round2(Math.max(0, data.paidAmount)) : loan.paidAmount;
-        const rem = round2(Math.max(0, orig - paid));
-        const nextStatus =
-          data.status ||
-          (loan.status === 'pendiente_autorizacion' || loan.status === 'rechazado'
-            ? loan.status
-            : rem <= 0
-            ? 'liquidado'
-            : 'activo');
-        const updated: CDOLoanCredit = {
-          ...loan,
-          ...data,
-          originalAmount: orig,
-          paidAmount: paid,
-          remainingAmount: rem,
-          status: nextStatus,
-        };
-        void dbUpsertLoanCredit(updated).catch(console.error);
-        return updated;
-      })
-    );
+    const existing = rawLoans.find((l) => l.id === id);
+    if (!existing) return;
+
+    const orig =
+      data.originalAmount !== undefined ? round2(Math.max(0, data.originalAmount)) : existing.originalAmount;
+    const paid =
+      data.paidAmount !== undefined ? round2(Math.max(0, data.paidAmount)) : existing.paidAmount;
+    const rem = round2(Math.max(0, orig - paid));
+    const nextStatus =
+      data.status ||
+      (existing.status === 'pendiente_autorizacion' || existing.status === 'rechazado'
+        ? existing.status
+        : rem <= 0
+        ? 'liquidado'
+        : 'activo');
+    const updated: CDOLoanCredit = {
+      ...existing,
+      ...data,
+      originalAmount: orig,
+      paidAmount: paid,
+      remainingAmount: rem,
+      status: nextStatus,
+    };
+
+    setRawLoans((prev) => prev.map((loan) => (loan.id === id ? updated : loan)));
+    persistToSupabase(dbUpsertLoanCredit(updated), 'Error al actualizar préstamo en Supabase');
   };
 
   const registerLoanPayment = (
@@ -1700,46 +1776,48 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status: loan.remainingAmount <= 0 ? 'liquidado' : 'activo',
     });
 
-    setNotifications((prev) => {
-      const updatedExisting = prev.map((n) => {
-        if (n.loanId === loanId && n.actionStatus === 'pendiente') {
-          const nextN: CDONotification = {
-            ...n,
-            actionStatus: 'autorizado',
-            readByUserIds: n.readByUserIds.includes(currentUser.id)
-              ? n.readByUserIds
-              : [...n.readByUserIds, currentUser.id],
-          };
-          void dbUpsertNotification(nextN).catch(console.error);
-          return nextN;
-        }
-        return n;
-      });
-      const replyNotif: CDONotification = {
-        id: `notif-loan-ok-${now}`,
-        type: 'egreso_autorizado',
-        targetRole: 'administracion',
-        title: `${loan.kind === 'prestamo' ? 'Préstamo' : 'Crédito Bancario'} Autorizado`,
-        message: `${currentUser.fullName} autorizó "${loan.title}" por $${loan.originalAmount.toLocaleString(
-          'es-MX',
-          { minimumFractionDigits: 2 }
-        )}.`,
-        loanId: loan.id,
-        amount: loan.originalAmount,
-        accountName: loan.accountName || loan.institution,
-        companyName: loan.companyName,
-        projectName: loan.projectName,
-        clientName: loan.clientName,
-        expenseKind: loan.kind,
-        createdByUserId: currentUser.id,
-        createdByName: currentUser.fullName,
-        readByUserIds: [],
-        actionStatus: 'autorizado',
-        timestamp: now,
-      };
-      void dbUpsertNotification(replyNotif).catch(console.error);
-      return [replyNotif, ...updatedExisting];
+    const updatedNotifs: CDONotification[] = [];
+    const nextList = notifications.map((n) => {
+      if (n.loanId === loanId && n.actionStatus === 'pendiente') {
+        const nextN: CDONotification = {
+          ...n,
+          actionStatus: 'autorizado',
+          readByUserIds: n.readByUserIds.includes(currentUser.id)
+            ? n.readByUserIds
+            : [...n.readByUserIds, currentUser.id],
+        };
+        updatedNotifs.push(nextN);
+        return nextN;
+      }
+      return n;
     });
+    const replyNotif: CDONotification = {
+      id: `notif-loan-ok-${now}`,
+      type: 'egreso_autorizado',
+      targetRole: 'administracion',
+      title: `${loan.kind === 'prestamo' ? 'Préstamo' : 'Crédito Bancario'} Autorizado`,
+      message: `${currentUser.fullName} autorizó "${loan.title}" por $${loan.originalAmount.toLocaleString(
+        'es-MX',
+        { minimumFractionDigits: 2 }
+      )}.`,
+      loanId: loan.id,
+      amount: loan.originalAmount,
+      accountName: loan.accountName || loan.institution,
+      companyName: loan.companyName,
+      projectName: loan.projectName,
+      clientName: loan.clientName,
+      expenseKind: loan.kind,
+      createdByUserId: currentUser.id,
+      createdByName: currentUser.fullName,
+      readByUserIds: [],
+      actionStatus: 'autorizado',
+      timestamp: now,
+    };
+    setNotifications([replyNotif, ...nextList]);
+    updatedNotifs.forEach((n) =>
+      persistToSupabase(dbUpsertNotification(n), 'Error al actualizar notificación en Supabase')
+    );
+    persistToSupabase(dbUpsertNotification(replyNotif), 'Error al enviar notificación en Supabase');
   };
 
   const rejectLoanDirect = (loanId: string, reason?: string) => {
@@ -1754,79 +1832,82 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const cleanReason = reason?.trim() || 'Solicitud rechazada por Admin';
     updateLoanCredit(loanId, { status: 'rechazado' });
 
-    setNotifications((prev) => {
-      const updatedExisting = prev.map((n) => {
-        if (n.loanId === loanId && n.actionStatus === 'pendiente') {
-          const nextN: CDONotification = {
-            ...n,
-            actionStatus: 'rechazado',
-            rejectionReason: cleanReason,
-            readByUserIds: n.readByUserIds.includes(currentUser.id)
-              ? n.readByUserIds
-              : [...n.readByUserIds, currentUser.id],
-          };
-          void dbUpsertNotification(nextN).catch(console.error);
-          return nextN;
-        }
-        return n;
-      });
-      const replyNotif: CDONotification = {
-        id: `notif-loan-rej-${now}`,
-        type: 'egreso_rechazado',
-        targetRole: 'administracion',
-        title: `${loan.kind === 'prestamo' ? 'Préstamo' : 'Crédito Bancario'} Rechazado`,
-        message: `${currentUser.fullName} rechazó "${loan.title}". Motivo: ${cleanReason}`,
-        loanId: loan.id,
-        amount: loan.originalAmount,
-        accountName: loan.accountName || loan.institution,
-        companyName: loan.companyName,
-        projectName: loan.projectName,
-        clientName: loan.clientName,
-        expenseKind: loan.kind,
-        createdByUserId: currentUser.id,
-        createdByName: currentUser.fullName,
-        readByUserIds: [],
-        actionStatus: 'rechazado',
-        rejectionReason: cleanReason,
-        timestamp: now,
-      };
-      void dbUpsertNotification(replyNotif).catch(console.error);
-      return [replyNotif, ...updatedExisting];
+    const updatedNotifs: CDONotification[] = [];
+    const nextList = notifications.map((n) => {
+      if (n.loanId === loanId && n.actionStatus === 'pendiente') {
+        const nextN: CDONotification = {
+          ...n,
+          actionStatus: 'rechazado',
+          rejectionReason: cleanReason,
+          readByUserIds: n.readByUserIds.includes(currentUser.id)
+            ? n.readByUserIds
+            : [...n.readByUserIds, currentUser.id],
+        };
+        updatedNotifs.push(nextN);
+        return nextN;
+      }
+      return n;
     });
+    const replyNotif: CDONotification = {
+      id: `notif-loan-rej-${now}`,
+      type: 'egreso_rechazado',
+      targetRole: 'administracion',
+      title: `${loan.kind === 'prestamo' ? 'Préstamo' : 'Crédito Bancario'} Rechazado`,
+      message: `${currentUser.fullName} rechazó "${loan.title}". Motivo: ${cleanReason}`,
+      loanId: loan.id,
+      amount: loan.originalAmount,
+      accountName: loan.accountName || loan.institution,
+      companyName: loan.companyName,
+      projectName: loan.projectName,
+      clientName: loan.clientName,
+      expenseKind: loan.kind,
+      createdByUserId: currentUser.id,
+      createdByName: currentUser.fullName,
+      readByUserIds: [],
+      actionStatus: 'rechazado',
+      rejectionReason: cleanReason,
+      timestamp: now,
+    };
+    setNotifications([replyNotif, ...nextList]);
+    updatedNotifs.forEach((n) =>
+      persistToSupabase(dbUpsertNotification(n), 'Error al actualizar notificación en Supabase')
+    );
+    persistToSupabase(dbUpsertNotification(replyNotif), 'Error al enviar notificación en Supabase');
   };
 
   const deleteLoanCredit = (id: string) => {
     setRawLoans((prev) => prev.filter((l) => l.id !== id));
-    void dbDeleteLoanCredit(id).catch(console.error);
+    persistToSupabase(dbDeleteLoanCredit(id), 'Error al eliminar préstamo en Supabase');
   };
 
   const markNotificationRead = (id: string) => {
     if (!currentUser) return;
-    setNotifications((prev) =>
-      prev.map((n) => {
-        if (n.id !== id || n.readByUserIds.includes(currentUser.id)) return n;
-        const updated: CDONotification = {
-          ...n,
-          readByUserIds: [...n.readByUserIds, currentUser.id],
-        };
-        void dbUpsertNotification(updated).catch(console.error);
-        return updated;
-      })
-    );
+    const target = notifications.find((n) => n.id === id);
+    if (!target || target.readByUserIds.includes(currentUser.id)) return;
+    const updated: CDONotification = {
+      ...target,
+      readByUserIds: [...target.readByUserIds, currentUser.id],
+    };
+    setNotifications((prev) => prev.map((n) => (n.id === id ? updated : n)));
+    persistToSupabase(dbUpsertNotification(updated), 'Error al marcar notificación en Supabase');
   };
 
   const markAllNotificationsRead = () => {
     if (!currentUser) return;
-    setNotifications((prev) =>
-      prev.map((n) => {
-        if (n.targetRole !== currentUser.role || n.readByUserIds.includes(currentUser.id)) return n;
-        const updated: CDONotification = {
-          ...n,
-          readByUserIds: [...n.readByUserIds, currentUser.id],
-        };
-        void dbUpsertNotification(updated).catch(console.error);
-        return updated;
-      })
+    const changed: CDONotification[] = [];
+    const nextList = notifications.map((n) => {
+      if (n.targetRole !== currentUser.role || n.readByUserIds.includes(currentUser.id)) return n;
+      const updated: CDONotification = {
+        ...n,
+        readByUserIds: [...n.readByUserIds, currentUser.id],
+      };
+      changed.push(updated);
+      return updated;
+    });
+    if (changed.length === 0) return;
+    setNotifications(nextList);
+    changed.forEach((n) =>
+      persistToSupabase(dbUpsertNotification(n), 'Error al marcar notificaciones en Supabase')
     );
   };
 
@@ -1840,7 +1921,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       rfc: rfc?.trim() || undefined,
     };
     setCompanies((prev) => [...prev, newCo]);
-    void dbUpsertCompany(newCo).catch(console.error);
+    persistToSupabase(dbUpsertCompany(newCo), 'Error al guardar S.A. en Supabase');
     setLastSync({
       id: `sync-${Date.now()}`,
       kind: 'catalogo',
@@ -1852,20 +1933,17 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateCompany = (id: string, data: Partial<Omit<CODCompany, 'id'>>) => {
-    setCompanies((prev) =>
-      prev.map((c) => {
-        if (c.id !== id) return c;
-        const updated = { ...c, ...data };
-        void dbUpsertCompany(updated).catch(console.error);
-        return updated;
-      })
-    );
+    const existing = companies.find((c) => c.id === id);
+    if (!existing) return;
+    const updated: CODCompany = { ...existing, ...data };
+    setCompanies((prev) => prev.map((c) => (c.id === id ? updated : c)));
+    persistToSupabase(dbUpsertCompany(updated), 'Error al actualizar S.A. en Supabase');
   };
 
   const deleteCompany = (id: string): boolean => {
     if (companies.length <= 1) return false;
     setCompanies((prev) => prev.filter((c) => c.id !== id));
-    void dbDeleteCompany(id).catch(console.error);
+    persistToSupabase(dbDeleteCompany(id), 'Error al eliminar S.A. en Supabase');
     if (selectedCompanyFilter === id) setSelectedCompanyFilter('ALL');
     return true;
   };
@@ -1879,7 +1957,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       contact: contact?.trim() || undefined,
     };
     setClients((prev) => [...prev, newClient]);
-    void dbUpsertClient(newClient).catch(console.error);
+    persistToSupabase(dbUpsertClient(newClient), 'Error al guardar cliente en Supabase');
     setLastSync({
       id: `sync-${Date.now()}`,
       kind: 'catalogo',
@@ -1891,19 +1969,16 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateClient = (id: string, data: Partial<Omit<CODClient, 'id'>>) => {
-    setClients((prev) =>
-      prev.map((c) => {
-        if (c.id !== id) return c;
-        const updated = { ...c, ...data };
-        void dbUpsertClient(updated).catch(console.error);
-        return updated;
-      })
-    );
+    const existing = clients.find((c) => c.id === id);
+    if (!existing) return;
+    const updated: CODClient = { ...existing, ...data };
+    setClients((prev) => prev.map((c) => (c.id === id ? updated : c)));
+    persistToSupabase(dbUpsertClient(updated), 'Error al actualizar cliente en Supabase');
   };
 
   const deleteClient = (id: string) => {
     setClients((prev) => prev.filter((c) => c.id !== id));
-    void dbDeleteClient(id).catch(console.error);
+    persistToSupabase(dbDeleteClient(id), 'Error al eliminar cliente en Supabase');
   };
 
   // COST CENTERS (PROJECTS / OBRAS) CRUD
@@ -1917,7 +1992,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       clientName: cli?.name,
     };
     setRawCostCenters((prev) => [...prev, newObra]);
-    void dbUpsertProject(newObra).catch(console.error);
+    persistToSupabase(dbUpsertProject(newObra), 'Error al guardar proyecto en Supabase');
     setLastSync({
       id: `sync-${Date.now()}`,
       kind: 'catalogo',
@@ -1929,19 +2004,24 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateCostCenter = (id: string, data: Partial<Omit<CODCostCenter, 'id'>>) => {
-    setRawCostCenters((prev) =>
-      prev.map((o) => {
-        if (o.id !== id) return o;
-        const updated = { ...o, ...data };
-        void dbUpsertProject(updated).catch(console.error);
-        return updated;
-      })
-    );
+    const existing = rawCostCenters.find((o) => o.id === id);
+    if (!existing) return;
+    const cli =
+      data.clientId !== undefined
+        ? clients.find((c) => c.id === data.clientId)
+        : undefined;
+    const updated: CODCostCenter = {
+      ...existing,
+      ...data,
+      clientName: data.clientId !== undefined ? cli?.name : existing.clientName,
+    };
+    setRawCostCenters((prev) => prev.map((o) => (o.id === id ? updated : o)));
+    persistToSupabase(dbUpsertProject(updated), 'Error al actualizar proyecto en Supabase');
   };
 
   const deleteCostCenter = (id: string) => {
     setRawCostCenters((prev) => prev.filter((o) => o.id !== id));
-    void dbDeleteProject(id).catch(console.error);
+    persistToSupabase(dbDeleteProject(id), 'Error al eliminar proyecto en Supabase');
   };
 
   // ACCOUNTS (BANKS & CASH) CRUD
@@ -1955,7 +2035,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       initialBalance: round2(Math.max(0, input.initialBalance)),
     };
     setBaseAccounts((prev) => [...prev, newAcc]);
-    void dbUpsertAccount(newAcc).catch(console.error);
+    persistToSupabase(dbUpsertAccount(newAcc), 'Error al guardar cuenta bancaria en Supabase');
     const companyName = companies.find((c) => c.id === input.companyId)?.name || input.companyId;
     setLastSync({
       id: `sync-${Date.now()}`,
@@ -1968,21 +2048,18 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateAccount = (id: string, data: Partial<Omit<CODAccount, 'id'>>) => {
-    setBaseAccounts((prev) =>
-      prev.map((acc) => {
-        if (acc.id !== id) return acc;
-        const updated: CODAccount = {
-          ...acc,
-          ...data,
-          initialBalance:
-            data.initialBalance !== undefined
-              ? round2(Math.max(0, data.initialBalance))
-              : acc.initialBalance,
-        };
-        void dbUpsertAccount(updated).catch(console.error);
-        return updated;
-      })
-    );
+    const existing = baseAccounts.find((acc) => acc.id === id);
+    if (!existing) return;
+    const updated: CODAccount = {
+      ...existing,
+      ...data,
+      initialBalance:
+        data.initialBalance !== undefined
+          ? round2(Math.max(0, data.initialBalance))
+          : existing.initialBalance,
+    };
+    setBaseAccounts((prev) => prev.map((acc) => (acc.id === id ? updated : acc)));
+    persistToSupabase(dbUpsertAccount(updated), 'Error al actualizar cuenta bancaria en Supabase');
   };
 
   const updateAccountInitialBalance = (accountId: string, newInitialBalance: number) => {
@@ -1992,7 +2069,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteAccount = (id: string): boolean => {
     if (baseAccounts.length <= 1) return false;
     setBaseAccounts((prev) => prev.filter((a) => a.id !== id));
-    void dbDeleteAccount(id).catch(console.error);
+    persistToSupabase(dbDeleteAccount(id), 'Error al eliminar cuenta bancaria en Supabase');
     return true;
   };
 
@@ -2004,13 +2081,13 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       kind,
     };
     setConcepts((prev) => [...prev, newConcept]);
-    void dbUpsertConcept(newConcept).catch(console.error);
+    persistToSupabase(dbUpsertConcept(newConcept), 'Error al guardar concepto en Supabase');
     return newConcept;
   };
 
   const deleteConcept = (id: string) => {
     setConcepts((prev) => prev.filter((c) => c.id !== id));
-    void dbDeleteConcept(id).catch(console.error);
+    persistToSupabase(dbDeleteConcept(id), 'Error al eliminar concepto en Supabase');
   };
 
   // RESET / START FROM ZERO
@@ -2020,7 +2097,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setRawLoans([]);
     setNotifications([]);
     setBaseAccounts((prev) => prev.map((a) => ({ ...a, initialBalance: 0 })));
-    void dbClearMovementsToZero().catch(console.error);
+    persistToSupabase(dbClearMovementsToZero(), 'Error al limpiar movimientos en Supabase');
     setLastSync({
       id: `sync-${Date.now()}`,
       kind: 'catalogo',
@@ -2053,17 +2130,20 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setRawLoans([]);
     setNotifications([]);
     setSelectedCompanyFilter('ALL');
-    void dbSyncFullSnapshot({
-      companies: [primarySa],
-      clients: [],
-      costCenters: [],
-      accounts: [primaryAcc],
-      concepts,
-      incomes: [],
-      expenses: [],
-      loansCredits: [],
-      notifications: [],
-    }).catch(console.error);
+    persistToSupabase(
+      dbSyncFullSnapshot({
+        companies: [primarySa],
+        clients: [],
+        costCenters: [],
+        accounts: [primaryAcc],
+        concepts,
+        incomes: [],
+        expenses: [],
+        loansCredits: [],
+        notifications: [],
+      }),
+      'Error al reiniciar sistema en Supabase'
+    );
     setLastSync({
       id: `sync-${Date.now()}`,
       kind: 'catalogo',
@@ -2085,17 +2165,20 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setNotifications([]);
     setSelectedCompanyFilter('ALL');
     setLastSync(null);
-    void dbSyncFullSnapshot({
-      companies: INITIAL_COD_COMPANIES,
-      clients: INITIAL_COD_CLIENTS,
-      costCenters: INITIAL_COD_COST_CENTERS,
-      accounts: INITIAL_COD_ACCOUNTS,
-      concepts: INITIAL_COD_CONCEPTS,
-      incomes: INITIAL_COD_INCOMES,
-      expenses: INITIAL_COD_EXPENSES,
-      loansCredits: INITIAL_COD_LOANS_CREDITS,
-      notifications: [],
-    }).catch(console.error);
+    persistToSupabase(
+      dbSyncFullSnapshot({
+        companies: INITIAL_COD_COMPANIES,
+        clients: INITIAL_COD_CLIENTS,
+        costCenters: INITIAL_COD_COST_CENTERS,
+        accounts: INITIAL_COD_ACCOUNTS,
+        concepts: INITIAL_COD_CONCEPTS,
+        incomes: INITIAL_COD_INCOMES,
+        expenses: INITIAL_COD_EXPENSES,
+        loansCredits: INITIAL_COD_LOANS_CREDITS,
+        notifications: [],
+      }),
+      'Error al restablecer datos en Supabase'
+    );
   };
 
   return (

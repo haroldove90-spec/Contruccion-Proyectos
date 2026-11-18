@@ -16,6 +16,9 @@ import type {
 
 export interface CDOHydratedData {
   users: CDOUser[];
+  hasCoreRows: boolean;
+  loansLoaded: boolean;
+  notificationsLoaded: boolean;
   companies: CODCompany[];
   clients: CODClient[];
   costCenters: CODCostCenter[];
@@ -25,6 +28,15 @@ export interface CDOHydratedData {
   expenses: CODExpense[];
   loansCredits: CDOLoanCredit[];
   notifications: CDONotification[];
+}
+
+function assertOk(
+  res: { error: { message: string; details?: string; hint?: string } | null },
+  operation: string
+) {
+  if (res.error) {
+    throw new Error(`${operation}: ${res.error.message}`);
+  }
 }
 
 export async function fetchAllCDOFromSupabase(): Promise<CDOHydratedData | null> {
@@ -55,12 +67,8 @@ export async function fetchAllCDOFromSupabase(): Promise<CDOHydratedData | null>
       return null;
     }
 
-    // If database has not been seeded/populated yet, keep local initial state
     const hasCoreRows =
       (coRes.data?.length || 0) > 0 || (accRes.data?.length || 0) > 0;
-    if (!hasCoreRows) {
-      return null;
-    }
 
     return {
       users:
@@ -76,6 +84,9 @@ export async function fetchAllCDOFromSupabase(): Promise<CDOHydratedData | null>
               phone: r.phone || '',
               position: r.position || '',
             })),
+      hasCoreRows,
+      loansLoaded: !loanRes.error,
+      notificationsLoaded: !notifRes.error,
       companies: (coRes.data || []).map((r) => ({
         id: r.id,
         name: r.name,
@@ -215,288 +226,112 @@ export async function fetchAllCDOFromSupabase(): Promise<CDOHydratedData | null>
 }
 
 export async function dbUpsertCompany(c: CODCompany) {
-  await supabase.from('cdo_companies').upsert({
-    id: c.id,
-    name: c.name,
-    short_name: c.shortName,
-    rfc: c.rfc || null,
-  });
-}
-
-export async function dbDeleteCompany(id: string) {
-  await supabase.from('cdo_companies').delete().eq('id', id);
-}
-
-export async function dbUpsertClient(c: CODClient) {
-  await supabase.from('cdo_clients').upsert({
-    id: c.id,
-    name: c.name,
-    rfc: c.rfc || null,
-    contact: c.contact || null,
-  });
-}
-
-export async function dbDeleteClient(id: string) {
-  await supabase.from('cdo_clients').delete().eq('id', id);
-}
-
-export async function dbUpsertProject(p: CODCostCenter) {
-  await supabase.from('cdo_projects').upsert({
-    id: p.id,
-    name: p.name,
-    client_id: p.clientId || null,
-    client_name: p.clientName || null,
-    company_id: p.companyId || null,
-  });
-}
-
-export async function dbDeleteProject(id: string) {
-  await supabase.from('cdo_projects').delete().eq('id', id);
-}
-
-export async function dbUpsertAccount(a: CODAccount) {
-  await supabase.from('cdo_accounts').upsert({
-    id: a.id,
-    name: a.name,
-    account_number: a.accountNumber || null,
-    type: a.type,
-    company_id: a.companyId || null,
-    initial_balance: a.initialBalance,
-  });
-}
-
-export async function dbDeleteAccount(id: string) {
-  await supabase.from('cdo_accounts').delete().eq('id', id);
-}
-
-export async function dbUpsertConcept(c: CODConceptItem) {
-  await supabase.from('cdo_concepts').upsert({
-    id: c.id,
-    name: c.name,
-    kind: c.kind,
-  });
-}
-
-export async function dbDeleteConcept(id: string) {
-  await supabase.from('cdo_concepts').delete().eq('id', id);
-}
-
-export async function dbUpsertIncome(i: CODIncome) {
-  await supabase.from('cdo_incomes').upsert({
-    id: i.id,
-    mov_number: i.movNumber,
-    concept: i.concept,
-    date: i.date,
-    company_id: i.companyId || null,
-    company_name: i.companyName,
-    client_id: i.clientId || null,
-    client_name: i.clientName || null,
-    project_id: i.projectId || null,
-    project_name: i.projectName || null,
-    subtotal: i.subtotal,
-    iva: i.iva,
-    total: i.total,
-    account_id: i.accountId || null,
-    account_name: i.accountName,
-    timestamp_ms: i.timestamp,
-  });
-}
-
-export async function dbDeleteIncome(id: string) {
-  await supabase.from('cdo_incomes').delete().eq('id', id);
-}
-
-export async function dbUpsertExpense(e: CODExpense) {
-  await supabase.from('cdo_expenses').upsert({
-    id: e.id,
-    mov_number: e.movNumber,
-    concept: e.concept,
-    date: e.date,
-    project_id: e.projectId || null,
-    project_name: e.projectName,
-    client_id: e.clientId || null,
-    client_name: e.clientName || null,
-    company_id: e.companyId || null,
-    company_name: e.companyName,
-    subtotal: e.subtotal,
-    iva: e.iva,
-    total: e.total,
-    account_id: e.accountId || null,
-    account_name: e.accountName,
-    captured_via: e.capturedVia,
-    expense_kind: e.expenseKind || 'gasto',
-    linked_loan_id: e.linkedLoanId || null,
-    approval_status: e.approvalStatus || 'autorizado',
-    requested_by_user_id: e.requestedByUserId || null,
-    requested_by_name: e.requestedByName || null,
-    reviewed_by_user_id: e.reviewedByUserId || null,
-    reviewed_by_name: e.reviewedByName || null,
-    reviewed_at_ms: e.reviewedAt || null,
-    rejection_reason: e.rejectionReason || null,
-    timestamp_ms: e.timestamp,
-  });
-}
-
-export async function dbDeleteExpense(id: string) {
-  await supabase.from('cdo_expenses').delete().eq('id', id);
-}
-
-export async function dbUpsertLoanCredit(l: CDOLoanCredit) {
-  await supabase.from('cdo_loans_credits').upsert({
-    id: l.id,
-    kind: l.kind,
-    title: l.title,
-    institution: l.institution,
-    card_last4: l.cardLast4 || null,
-    date: l.date,
-    due_date: l.dueDate || null,
-    company_id: l.companyId || null,
-    company_name: l.companyName,
-    client_id: l.clientId || null,
-    client_name: l.clientName || null,
-    project_id: l.projectId || null,
-    project_name: l.projectName || null,
-    account_id: l.accountId || null,
-    account_name: l.accountName || null,
-    original_amount: l.originalAmount,
-    paid_amount: l.paidAmount,
-    remaining_amount: l.remainingAmount,
-    source_expense_id: l.sourceExpenseId || null,
-    status: l.status,
-    notes: l.notes || null,
-    requested_by_user_id: l.requestedByUserId || null,
-    requested_by_name: l.requestedByName || null,
-    timestamp_ms: l.timestamp,
-  });
-}
-
-export async function dbDeleteLoanCredit(id: string) {
-  await supabase.from('cdo_loans_credits').delete().eq('id', id);
-}
-
-export async function dbUpsertNotification(n: CDONotification) {
-  await supabase.from('cdo_notifications').upsert({
-    id: n.id,
-    type: n.type,
-    target_role: n.targetRole,
-    title: n.title,
-    message: n.message,
-    expense_id: n.expenseId || null,
-    loan_id: n.loanId || null,
-    amount: n.amount ?? null,
-    account_name: n.accountName || null,
-    company_name: n.companyName || null,
-    project_name: n.projectName || null,
-    client_name: n.clientName || null,
-    expense_kind: n.expenseKind || null,
-    created_by_user_id: n.createdByUserId,
-    created_by_name: n.createdByName,
-    read_by_user_ids: n.readByUserIds,
-    action_status: n.actionStatus || null,
-    rejection_reason: n.rejectionReason || null,
-    timestamp_ms: n.timestamp,
-  });
-}
-
-export async function dbUpsertUser(u: CDOUser) {
-  await supabase.from('cdo_users').upsert({
-    id: u.id,
-    full_name: u.fullName,
-    username: u.username,
-    password_hash: u.passwordHash,
-    role: u.role,
-    email: u.email || null,
-    phone: u.phone || null,
-    position: u.position || null,
-  });
-}
-
-export async function dbDeleteUser(id: string) {
-  await supabase.from('cdo_users').delete().eq('id', id);
-}
-
-export async function dbClearMovementsToZero() {
-  await Promise.all([
-    supabase.from('cdo_notifications').delete().neq('id', ''),
-    supabase.from('cdo_loans_credits').delete().neq('id', ''),
-    supabase.from('cdo_incomes').delete().neq('id', ''),
-    supabase.from('cdo_expenses').delete().neq('id', ''),
-    supabase.from('cdo_accounts').update({ initial_balance: 0 }).neq('id', ''),
-  ]);
-}
-
-export async function dbSyncFullSnapshot(data: Omit<CDOHydratedData, 'users'>) {
-  await Promise.all([
-    supabase.from('cdo_notifications').delete().neq('id', ''),
-    supabase.from('cdo_loans_credits').delete().neq('id', ''),
-    supabase.from('cdo_incomes').delete().neq('id', ''),
-    supabase.from('cdo_expenses').delete().neq('id', ''),
-  ]);
-  await Promise.all([
-    supabase.from('cdo_projects').delete().neq('id', ''),
-    supabase.from('cdo_accounts').delete().neq('id', ''),
-  ]);
-  await Promise.all([
-    supabase.from('cdo_clients').delete().neq('id', ''),
-    supabase.from('cdo_concepts').delete().neq('id', ''),
-  ]);
-  await supabase.from('cdo_companies').delete().neq('id', '');
-
-  if (data.companies.length) {
-    await supabase.from('cdo_companies').upsert(
-      data.companies.map((c) => ({
+  const res = await supabase
+    .from('cdo_companies')
+    .upsert(
+      {
         id: c.id,
         name: c.name,
         short_name: c.shortName,
         rfc: c.rfc || null,
-      }))
+      },
+      { onConflict: 'id' }
     );
-  }
-  if (data.clients.length) {
-    await supabase.from('cdo_clients').upsert(
-      data.clients.map((c) => ({
+  assertOk(res, 'Guardar S.A.');
+}
+
+export async function dbDeleteCompany(id: string) {
+  const res = await supabase.from('cdo_companies').delete().eq('id', id);
+  assertOk(res, 'Eliminar S.A.');
+}
+
+export async function dbUpsertClient(c: CODClient) {
+  const res = await supabase
+    .from('cdo_clients')
+    .upsert(
+      {
         id: c.id,
         name: c.name,
         rfc: c.rfc || null,
         contact: c.contact || null,
-      }))
+      },
+      { onConflict: 'id' }
     );
-  }
-  if (data.costCenters.length) {
-    await supabase.from('cdo_projects').upsert(
-      data.costCenters.map((p) => ({
+  assertOk(res, 'Guardar Cliente');
+}
+
+export async function dbDeleteClient(id: string) {
+  const res = await supabase.from('cdo_clients').delete().eq('id', id);
+  assertOk(res, 'Eliminar Cliente');
+}
+
+export async function dbUpsertProject(p: CODCostCenter) {
+  const res = await supabase
+    .from('cdo_projects')
+    .upsert(
+      {
         id: p.id,
         name: p.name,
         client_id: p.clientId || null,
         client_name: p.clientName || null,
         company_id: p.companyId || null,
-      }))
+      },
+      { onConflict: 'id' }
     );
-  }
-  if (data.accounts.length) {
-    await supabase.from('cdo_accounts').upsert(
-      data.accounts.map((a) => ({
+  assertOk(res, 'Guardar Proyecto');
+}
+
+export async function dbDeleteProject(id: string) {
+  const res = await supabase.from('cdo_projects').delete().eq('id', id);
+  assertOk(res, 'Eliminar Proyecto');
+}
+
+export async function dbUpsertAccount(a: CODAccount) {
+  const res = await supabase
+    .from('cdo_accounts')
+    .upsert(
+      {
         id: a.id,
         name: a.name,
         account_number: a.accountNumber || null,
         type: a.type,
         company_id: a.companyId || null,
         initial_balance: a.initialBalance,
-      }))
+      },
+      { onConflict: 'id' }
     );
-  }
-  if (data.concepts.length) {
-    await supabase.from('cdo_concepts').upsert(
-      data.concepts.map((c) => ({
+  assertOk(res, 'Guardar Cuenta Bancaria');
+}
+
+export async function dbDeleteAccount(id: string) {
+  const res = await supabase.from('cdo_accounts').delete().eq('id', id);
+  assertOk(res, 'Eliminar Cuenta Bancaria');
+}
+
+export async function dbUpsertConcept(c: CODConceptItem) {
+  const res = await supabase
+    .from('cdo_concepts')
+    .upsert(
+      {
         id: c.id,
         name: c.name,
         kind: c.kind,
-      }))
+      },
+      { onConflict: 'id' }
     );
-  }
-  if (data.incomes.length) {
-    await supabase.from('cdo_incomes').upsert(
-      data.incomes.map((i) => ({
+  assertOk(res, 'Guardar Concepto');
+}
+
+export async function dbDeleteConcept(id: string) {
+  const res = await supabase.from('cdo_concepts').delete().eq('id', id);
+  assertOk(res, 'Eliminar Concepto');
+}
+
+export async function dbUpsertIncome(i: CODIncome) {
+  const res = await supabase
+    .from('cdo_incomes')
+    .upsert(
+      {
         id: i.id,
         mov_number: i.movNumber,
         concept: i.concept,
@@ -513,12 +348,22 @@ export async function dbSyncFullSnapshot(data: Omit<CDOHydratedData, 'users'>) {
         account_id: i.accountId || null,
         account_name: i.accountName,
         timestamp_ms: i.timestamp,
-      }))
+      },
+      { onConflict: 'id' }
     );
-  }
-  if (data.expenses.length) {
-    await supabase.from('cdo_expenses').upsert(
-      data.expenses.map((e) => ({
+  assertOk(res, 'Guardar Ingreso');
+}
+
+export async function dbDeleteIncome(id: string) {
+  const res = await supabase.from('cdo_incomes').delete().eq('id', id);
+  assertOk(res, 'Eliminar Ingreso');
+}
+
+export async function dbUpsertExpense(e: CODExpense) {
+  const res = await supabase
+    .from('cdo_expenses')
+    .upsert(
+      {
         id: e.id,
         mov_number: e.movNumber,
         concept: e.concept,
@@ -545,12 +390,22 @@ export async function dbSyncFullSnapshot(data: Omit<CDOHydratedData, 'users'>) {
         reviewed_at_ms: e.reviewedAt || null,
         rejection_reason: e.rejectionReason || null,
         timestamp_ms: e.timestamp,
-      }))
+      },
+      { onConflict: 'id' }
     );
-  }
-  if (data.loansCredits.length) {
-    await supabase.from('cdo_loans_credits').upsert(
-      data.loansCredits.map((l) => ({
+  assertOk(res, 'Guardar Egreso');
+}
+
+export async function dbDeleteExpense(id: string) {
+  const res = await supabase.from('cdo_expenses').delete().eq('id', id);
+  assertOk(res, 'Eliminar Egreso');
+}
+
+export async function dbUpsertLoanCredit(l: CDOLoanCredit) {
+  const res = await supabase
+    .from('cdo_loans_credits')
+    .upsert(
+      {
         id: l.id,
         kind: l.kind,
         title: l.title,
@@ -575,7 +430,287 @@ export async function dbSyncFullSnapshot(data: Omit<CDOHydratedData, 'users'>) {
         requested_by_user_id: l.requestedByUserId || null,
         requested_by_name: l.requestedByName || null,
         timestamp_ms: l.timestamp,
-      }))
+      },
+      { onConflict: 'id' }
+    );
+  assertOk(res, 'Guardar Préstamo / Crédito');
+}
+
+export async function dbDeleteLoanCredit(id: string) {
+  const res = await supabase.from('cdo_loans_credits').delete().eq('id', id);
+  assertOk(res, 'Eliminar Préstamo / Crédito');
+}
+
+export async function dbUpsertNotification(n: CDONotification) {
+  const res = await supabase
+    .from('cdo_notifications')
+    .upsert(
+      {
+        id: n.id,
+        type: n.type,
+        target_role: n.targetRole,
+        title: n.title,
+        message: n.message,
+        expense_id: n.expenseId || null,
+        loan_id: n.loanId || null,
+        amount: n.amount ?? null,
+        account_name: n.accountName || null,
+        company_name: n.companyName || null,
+        project_name: n.projectName || null,
+        client_name: n.clientName || null,
+        expense_kind: n.expenseKind || null,
+        created_by_user_id: n.createdByUserId,
+        created_by_name: n.createdByName,
+        read_by_user_ids: n.readByUserIds,
+        action_status: n.actionStatus || null,
+        rejection_reason: n.rejectionReason || null,
+        timestamp_ms: n.timestamp,
+      },
+      { onConflict: 'id' }
+    );
+  assertOk(res, 'Guardar Notificación');
+}
+
+export async function dbUpsertUser(u: CDOUser): Promise<CDOUser> {
+  const res = await supabase
+    .from('cdo_users')
+    .upsert(
+      {
+        id: u.id,
+        full_name: u.fullName,
+        username: u.username,
+        password_hash: u.passwordHash,
+        role: u.role,
+        email: u.email || null,
+        phone: u.phone || null,
+        position: u.position || null,
+      },
+      { onConflict: 'id' }
+    )
+    .select()
+    .single();
+  assertOk(res, 'Guardar Usuario');
+  const row = res.data;
+  return {
+    id: row.id,
+    fullName: row.full_name,
+    username: row.username,
+    passwordHash: row.password_hash,
+    role: row.role as 'admin' | 'administracion',
+    email: row.email || '',
+    phone: row.phone || '',
+    position: row.position || '',
+  };
+}
+
+export async function dbDeleteUser(id: string) {
+  const res = await supabase.from('cdo_users').delete().eq('id', id);
+  assertOk(res, 'Eliminar Usuario');
+}
+
+export async function dbClearMovementsToZero() {
+  const results = await Promise.all([
+    supabase.from('cdo_notifications').delete().neq('id', ''),
+    supabase.from('cdo_loans_credits').delete().neq('id', ''),
+    supabase.from('cdo_incomes').delete().neq('id', ''),
+    supabase.from('cdo_expenses').delete().neq('id', ''),
+    supabase.from('cdo_accounts').update({ initial_balance: 0 }).neq('id', ''),
+  ]);
+  results.forEach((r, idx) => assertOk(r, `Limpiar movimientos (${idx})`));
+}
+
+export async function dbSyncFullSnapshot(
+  data: Omit<CDOHydratedData, 'users' | 'hasCoreRows' | 'loansLoaded' | 'notificationsLoaded'>
+) {
+  const delMovs = await Promise.all([
+    supabase.from('cdo_notifications').delete().neq('id', ''),
+    supabase.from('cdo_loans_credits').delete().neq('id', ''),
+    supabase.from('cdo_incomes').delete().neq('id', ''),
+    supabase.from('cdo_expenses').delete().neq('id', ''),
+  ]);
+  delMovs.forEach((r, idx) => assertOk(r, `Reiniciar movimientos (${idx})`));
+
+  const delRefs = await Promise.all([
+    supabase.from('cdo_projects').delete().neq('id', ''),
+    supabase.from('cdo_accounts').delete().neq('id', ''),
+  ]);
+  delRefs.forEach((r, idx) => assertOk(r, `Reiniciar referencias (${idx})`));
+
+  const delCats = await Promise.all([
+    supabase.from('cdo_clients').delete().neq('id', ''),
+    supabase.from('cdo_concepts').delete().neq('id', ''),
+  ]);
+  delCats.forEach((r, idx) => assertOk(r, `Reiniciar catálogos (${idx})`));
+
+  const delCo = await supabase.from('cdo_companies').delete().neq('id', '');
+  assertOk(delCo, 'Reiniciar empresas');
+
+  if (data.companies.length) {
+    assertOk(
+      await supabase.from('cdo_companies').upsert(
+        data.companies.map((c) => ({
+          id: c.id,
+          name: c.name,
+          short_name: c.shortName,
+          rfc: c.rfc || null,
+        })),
+        { onConflict: 'id' }
+      ),
+      'Insertar empresas'
+    );
+  }
+  if (data.clients.length) {
+    assertOk(
+      await supabase.from('cdo_clients').upsert(
+        data.clients.map((c) => ({
+          id: c.id,
+          name: c.name,
+          rfc: c.rfc || null,
+          contact: c.contact || null,
+        })),
+        { onConflict: 'id' }
+      ),
+      'Insertar clientes'
+    );
+  }
+  if (data.costCenters.length) {
+    assertOk(
+      await supabase.from('cdo_projects').upsert(
+        data.costCenters.map((p) => ({
+          id: p.id,
+          name: p.name,
+          client_id: p.clientId || null,
+          client_name: p.clientName || null,
+          company_id: p.companyId || null,
+        })),
+        { onConflict: 'id' }
+      ),
+      'Insertar proyectos'
+    );
+  }
+  if (data.accounts.length) {
+    assertOk(
+      await supabase.from('cdo_accounts').upsert(
+        data.accounts.map((a) => ({
+          id: a.id,
+          name: a.name,
+          account_number: a.accountNumber || null,
+          type: a.type,
+          company_id: a.companyId || null,
+          initial_balance: a.initialBalance,
+        })),
+        { onConflict: 'id' }
+      ),
+      'Insertar cuentas'
+    );
+  }
+  if (data.concepts.length) {
+    assertOk(
+      await supabase.from('cdo_concepts').upsert(
+        data.concepts.map((c) => ({
+          id: c.id,
+          name: c.name,
+          kind: c.kind,
+        })),
+        { onConflict: 'id' }
+      ),
+      'Insertar conceptos'
+    );
+  }
+  if (data.incomes.length) {
+    assertOk(
+      await supabase.from('cdo_incomes').upsert(
+        data.incomes.map((i) => ({
+          id: i.id,
+          mov_number: i.movNumber,
+          concept: i.concept,
+          date: i.date,
+          company_id: i.companyId || null,
+          company_name: i.companyName,
+          client_id: i.clientId || null,
+          client_name: i.clientName || null,
+          project_id: i.projectId || null,
+          project_name: i.projectName || null,
+          subtotal: i.subtotal,
+          iva: i.iva,
+          total: i.total,
+          account_id: i.accountId || null,
+          account_name: i.accountName,
+          timestamp_ms: i.timestamp,
+        })),
+        { onConflict: 'id' }
+      ),
+      'Insertar ingresos'
+    );
+  }
+  if (data.expenses.length) {
+    assertOk(
+      await supabase.from('cdo_expenses').upsert(
+        data.expenses.map((e) => ({
+          id: e.id,
+          mov_number: e.movNumber,
+          concept: e.concept,
+          date: e.date,
+          project_id: e.projectId || null,
+          project_name: e.projectName,
+          client_id: e.clientId || null,
+          client_name: e.clientName || null,
+          company_id: e.companyId || null,
+          company_name: e.companyName,
+          subtotal: e.subtotal,
+          iva: e.iva,
+          total: e.total,
+          account_id: e.accountId || null,
+          account_name: e.accountName,
+          captured_via: e.capturedVia,
+          expense_kind: e.expenseKind || 'gasto',
+          linked_loan_id: e.linkedLoanId || null,
+          approval_status: e.approvalStatus || 'autorizado',
+          requested_by_user_id: e.requestedByUserId || null,
+          requested_by_name: e.requestedByName || null,
+          reviewed_by_user_id: e.reviewedByUserId || null,
+          reviewed_by_name: e.reviewedByName || null,
+          reviewed_at_ms: e.reviewedAt || null,
+          rejection_reason: e.rejectionReason || null,
+          timestamp_ms: e.timestamp,
+        })),
+        { onConflict: 'id' }
+      ),
+      'Insertar egresos'
+    );
+  }
+  if (data.loansCredits.length) {
+    assertOk(
+      await supabase.from('cdo_loans_credits').upsert(
+        data.loansCredits.map((l) => ({
+          id: l.id,
+          kind: l.kind,
+          title: l.title,
+          institution: l.institution,
+          card_last4: l.cardLast4 || null,
+          date: l.date,
+          due_date: l.dueDate || null,
+          company_id: l.companyId || null,
+          company_name: l.companyName,
+          client_id: l.clientId || null,
+          client_name: l.clientName || null,
+          project_id: l.projectId || null,
+          project_name: l.projectName || null,
+          account_id: l.accountId || null,
+          account_name: l.accountName || null,
+          original_amount: l.originalAmount,
+          paid_amount: l.paidAmount,
+          remaining_amount: l.remainingAmount,
+          source_expense_id: l.sourceExpenseId || null,
+          status: l.status,
+          notes: l.notes || null,
+          requested_by_user_id: l.requestedByUserId || null,
+          requested_by_name: l.requestedByName || null,
+          timestamp_ms: l.timestamp,
+        })),
+        { onConflict: 'id' }
+      ),
+      'Insertar préstamos'
     );
   }
 }
