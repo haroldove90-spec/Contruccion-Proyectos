@@ -5,7 +5,7 @@ import { BrandLogo } from './BrandLogo';
 import { ShieldCheck, Lock, User, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
 
 export const RoleSelectionScreen: React.FC = () => {
-  const { setCurrentRole } = useERP();
+  const { setCurrentRole, setActiveModule } = useERP();
   const { login } = useCOD();
 
   const [username, setUsername] = useState('');
@@ -22,6 +22,7 @@ export const RoleSelectionScreen: React.FC = () => {
       return;
     }
     setCurrentRole(res.user.role);
+    setActiveModule('cdo_resumen');
   };
 
   return (

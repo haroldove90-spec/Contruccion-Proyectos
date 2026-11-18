@@ -50,7 +50,32 @@ export const CODCatalogosView: React.FC = () => {
   } = useCOD();
 
   const isAdmin = currentUser?.role === 'admin';
-  const [activeTab, setActiveTab] = useState<CatalogTab>('clientes');
+  const [activeTab, setActiveTabState] = useState<CatalogTab>(() => {
+    try {
+      const saved = localStorage.getItem('pc_cdo_catalog_tab') || sessionStorage.getItem('pc_cdo_catalog_tab');
+      if (
+        saved === 'clientes' ||
+        saved === 'proyectos' ||
+        saved === 'bancos' ||
+        saved === 'empresas' ||
+        saved === 'conceptos'
+      ) {
+        return saved;
+      }
+    } catch {
+      // ignore
+    }
+    return 'clientes';
+  });
+  const setActiveTab = (tab: CatalogTab) => {
+    setActiveTabState(tab);
+    try {
+      localStorage.setItem('pc_cdo_catalog_tab', tab);
+      sessionStorage.setItem('pc_cdo_catalog_tab', tab);
+    } catch {
+      // ignore
+    }
+  };
   const [confirmAction, setConfirmAction] = useState<'movements' | 'all' | null>(null);
 
   // Client form state

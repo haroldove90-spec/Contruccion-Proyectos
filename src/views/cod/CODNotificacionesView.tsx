@@ -35,7 +35,26 @@ export const CODNotificacionesView: React.FC = () => {
     markAllNotificationsRead,
   } = useCOD();
 
-  const [tab, setTab] = useState<'all' | 'unread' | 'pending' | 'sent'>('all');
+  const [tab, setTabState] = useState<'all' | 'unread' | 'pending' | 'sent'>(() => {
+    try {
+      const saved = localStorage.getItem('pc_cdo_notif_tab') || sessionStorage.getItem('pc_cdo_notif_tab');
+      if (saved === 'all' || saved === 'unread' || saved === 'pending' || saved === 'sent') {
+        return saved;
+      }
+    } catch {
+      // ignore
+    }
+    return 'all';
+  });
+  const setTab = (next: 'all' | 'unread' | 'pending' | 'sent') => {
+    setTabState(next);
+    try {
+      localStorage.setItem('pc_cdo_notif_tab', next);
+      sessionStorage.setItem('pc_cdo_notif_tab', next);
+    } catch {
+      // ignore
+    }
+  };
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
 

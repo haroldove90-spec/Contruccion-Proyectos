@@ -614,13 +614,31 @@ function loadCODStored<T>(key: string, fallback: T): T {
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string>('ALL');
+  const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string>(() => {
+    try {
+      return (
+        localStorage.getItem('pc_cdo_company_filter') ||
+        sessionStorage.getItem('pc_cdo_company_filter') ||
+        'ALL'
+      );
+    } catch {
+      return 'ALL';
+    }
+  });
 
   const [users, setUsers] = useState<CDOUser[]>(() =>
     loadCODStored(STORAGE_KEYS.users, INITIAL_CDO_USERS)
   );
   const [currentUserId, setCurrentUserId] = useState<string | null>(() => {
-    return localStorage.getItem(STORAGE_KEYS.sessionUserId) || null;
+    try {
+      return (
+        localStorage.getItem(STORAGE_KEYS.sessionUserId) ||
+        sessionStorage.getItem(STORAGE_KEYS.sessionUserId) ||
+        null
+      );
+    } catch {
+      return null;
+    }
   });
 
   const [companies, setCompanies] = useState<CODCompany[]>(() =>
@@ -717,10 +735,25 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [users]);
 
   useEffect(() => {
-    if (currentUserId) {
-      localStorage.setItem(STORAGE_KEYS.sessionUserId, currentUserId);
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.sessionUserId);
+    try {
+      localStorage.setItem('pc_cdo_company_filter', selectedCompanyFilter);
+      sessionStorage.setItem('pc_cdo_company_filter', selectedCompanyFilter);
+    } catch {
+      // ignore
+    }
+  }, [selectedCompanyFilter]);
+
+  useEffect(() => {
+    try {
+      if (currentUserId) {
+        localStorage.setItem(STORAGE_KEYS.sessionUserId, currentUserId);
+        sessionStorage.setItem(STORAGE_KEYS.sessionUserId, currentUserId);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.sessionUserId);
+        sessionStorage.removeItem(STORAGE_KEYS.sessionUserId);
+      }
+    } catch {
+      // ignore
     }
   }, [currentUserId]);
 
@@ -782,11 +815,23 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return { ok: false, error: 'Usuario o contraseña incorrectos.' };
     }
     setCurrentUserId(matched.id);
+    try {
+      localStorage.setItem(STORAGE_KEYS.sessionUserId, matched.id);
+      sessionStorage.setItem(STORAGE_KEYS.sessionUserId, matched.id);
+    } catch {
+      // ignore
+    }
     return { ok: true, user: matched };
   };
 
   const logout = () => {
     setCurrentUserId(null);
+    try {
+      localStorage.removeItem(STORAGE_KEYS.sessionUserId);
+      sessionStorage.removeItem(STORAGE_KEYS.sessionUserId);
+    } catch {
+      // ignore
+    }
   };
 
   const updateCurrentUserProfile = async (data: {

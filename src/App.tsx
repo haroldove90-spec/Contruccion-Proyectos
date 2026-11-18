@@ -32,15 +32,22 @@ const CDO_TABS = [
 ];
 
 const DashboardContent: React.FC = () => {
-  const { currentRole, activeModule, setActiveModule } = useERP();
+  const { currentRole, setCurrentRole, activeModule, setActiveModule } = useERP();
   const { currentUser, unreadNotificationsCount, pendingApprovalsCount } = useCOD();
 
-  if (!currentRole || !currentUser) {
+  React.useEffect(() => {
+    if (currentUser && currentRole !== currentUser.role) {
+      setCurrentRole(currentUser.role);
+    }
+  }, [currentUser, currentRole, setCurrentRole]);
+
+  if (!currentUser) {
     return <RoleSelectionScreen />;
   }
 
+  const effectiveRole = currentRole || currentUser.role;
   const notifCount =
-    currentRole === 'admin'
+    effectiveRole === 'admin'
       ? Math.max(unreadNotificationsCount, pendingApprovalsCount)
       : unreadNotificationsCount;
 

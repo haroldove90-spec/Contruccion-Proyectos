@@ -186,17 +186,83 @@ function readStored<T>(key: string, fallback: T): T {
   }
 }
 
-export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentRole, setCurrentRoleState] = useState<UserRole | null>(() => {
-    const sessionUserId = localStorage.getItem('pc_cdo_session_user_id');
-    const saved = localStorage.getItem('pc_erp_role');
+const VALID_MODULES = new Set([
+  'cdo_resumen',
+  'cdo_ingresos',
+  'cdo_egresos',
+  'cdo_bancos',
+  'cdo_prestamos',
+  'cdo_notificaciones',
+  'cdo_catalogos',
+  'cdo_perfil',
+]);
+
+function readInitialModule(): string {
+  try {
+    const hashMod = window.location.hash.replace(/^#/, '');
+    if (hashMod && VALID_MODULES.has(hashMod)) return hashMod;
+    const saved =
+      localStorage.getItem('pc_erp_active_module') ||
+      sessionStorage.getItem('pc_erp_active_module');
+    if (saved && VALID_MODULES.has(saved)) return saved;
+  } catch {
+    // ignore storage errors
+  }
+  return 'cdo_resumen';
+}
+
+function readInitialRole(): UserRole | null {
+  try {
+    const sessionUserId =
+      localStorage.getItem('pc_cdo_session_user_id') ||
+      sessionStorage.getItem('pc_cdo_session_user_id');
     if (!sessionUserId) return null;
+    const saved =
+      localStorage.getItem('pc_erp_role') ||
+      sessionStorage.getItem('pc_erp_role');
     if (saved === 'admin' || saved === 'administracion') return saved;
-    return null;
-  });
+  } catch {
+    // ignore storage errors
+  }
+  return null;
+}
+
+export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [currentRole, setCurrentRoleState] = useState<UserRole | null>(() => readInitialRole());
 
   const [activeCompanyId, setActiveCompanyId] = useState<string>('ALL');
-  const [activeModule, setActiveModule] = useState<string>('cdo_resumen');
+  const [activeModule, setActiveModuleState] = useState<string>(() => readInitialModule());
+
+  const setActiveModule = (mod: string) => {
+    const next = VALID_MODULES.has(mod) ? mod : 'cdo_resumen';
+    setActiveModuleState(next);
+    try {
+      localStorage.setItem('pc_erp_active_module', next);
+      sessionStorage.setItem('pc_erp_active_module', next);
+      if (window.location.hash !== `#${next}`) {
+        window.history.replaceState(null, '', `#${next}`);
+      }
+    } catch {
+      // ignore storage/history errors
+    }
+  };
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hashMod = window.location.hash.replace(/^#/, '');
+      if (hashMod && VALID_MODULES.has(hashMod)) {
+        setActiveModuleState(hashMod);
+        try {
+          localStorage.setItem('pc_erp_active_module', hashMod);
+          sessionStorage.setItem('pc_erp_active_module', hashMod);
+        } catch {
+          // ignore
+        }
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   const [companies] = useState<Company[]>(INITIAL_COMPANIES);
 
@@ -510,11 +576,22 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const setCurrentRole = (role: UserRole | null) => {
     setCurrentRoleState(role);
-    if (role) {
-      localStorage.setItem('pc_erp_role', role);
-      setActiveModule('cdo_resumen');
-    } else {
-      localStorage.setItem('pc_erp_role', 'null');
+    try {
+      if (role) {
+        localStorage.setItem('pc_erp_role', role);
+        sessionStorage.setItem('pc_erp_role', role);
+      } else {
+        localStorage.removeItem('pc_erp_role');
+        sessionStorage.removeItem('pc_erp_role');
+        localStorage.setItem('pc_erp_active_module', 'cdo_resumen');
+        sessionStorage.setItem('pc_erp_active_module', 'cdo_resumen');
+        setActiveModuleState('cdo_resumen');
+        if (window.location.hash) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+      }
+    } catch {
+      // ignore
     }
   };
 
