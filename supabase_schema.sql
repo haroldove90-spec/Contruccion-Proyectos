@@ -1,7 +1,9 @@
 -- ============================================================================
 -- SUPABASE SQL SCHEMA — PROYECTO: projectos_inmobiliarios (qflgjlwfzfqspxvwoegs)
--- Módulos CDO: Resumen, Ingresos, Egresos, Control Bancario y Efectivo, Catálogos
+-- Módulos CDO: Resumen, Ingresos, Egresos (con Autorización), Control Bancario,
+--              Préstamos y Tarjetas Bancarias, Notificaciones, Catálogos y Perfil
 -- Ejecutar completo en: Supabase Dashboard -> SQL Editor -> New Query -> Run
+-- Es idempotente: puedes ejecutarlo aunque ya hayas corrido la versión anterior.
 -- ============================================================================
 
 -- 0. USUARIOS Y ROLES (Admin y Administración)
@@ -65,7 +67,6 @@ CREATE TABLE IF NOT EXISTS public.cdo_concepts (
 );
 
 -- 6. REGISTRO CENTRALIZADO DE INGRESOS
--- Regla: Se ingresa Monto s/IVA; IVA (16%) y Total c/IVA se calculan automáticamente
 CREATE TABLE IF NOT EXISTS public.cdo_incomes (
   id TEXT PRIMARY KEY,
   mov_number INTEGER NOT NULL,
@@ -86,8 +87,7 @@ CREATE TABLE IF NOT EXISTS public.cdo_incomes (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 7. REGISTRO CENTRALIZADO DE EGRESOS (MANUAL Y WHATSAPP OCR)
--- Regla: Ligado a Obra (Centro de Costos), S.A. Pagadora y Cuenta de Origen
+-- 7. REGISTRO CENTRALIZADO DE EGRESOS (CON AUTORIZACIÓN Y SINCRONIZACIÓN A PRÉSTAMOS)
 CREATE TABLE IF NOT EXISTS public.cdo_expenses (
   id TEXT PRIMARY KEY,
   mov_number INTEGER NOT NULL,
@@ -95,6 +95,8 @@ CREATE TABLE IF NOT EXISTS public.cdo_expenses (
   date TEXT NOT NULL,
   project_id TEXT REFERENCES public.cdo_projects(id) ON DELETE SET NULL,
   project_name TEXT NOT NULL,
+  client_id TEXT REFERENCES public.cdo_clients(id) ON DELETE SET NULL,
+  client_name TEXT,
   company_id TEXT REFERENCES public.cdo_companies(id) ON DELETE SET NULL,
   company_name TEXT NOT NULL,
   subtotal NUMERIC(14, 2) NOT NULL CHECK (subtotal >= 0),
@@ -103,22 +105,103 @@ CREATE TABLE IF NOT EXISTS public.cdo_expenses (
   account_id TEXT REFERENCES public.cdo_accounts(id) ON DELETE SET NULL,
   account_name TEXT NOT NULL,
   captured_via TEXT NOT NULL CHECK (captured_via IN ('Manual', 'WhatsApp OCR')),
+  expense_kind TEXT NOT NULL DEFAULT 'gasto' CHECK (expense_kind IN ('gasto', 'prestamo', 'credito_bancario', 'abono_prestamo')),
+  linked_loan_id TEXT,
+  approval_status TEXT NOT NULL DEFAULT 'autorizado' CHECK (approval_status IN ('pendiente', 'autorizado', 'rechazado')),
+  requested_by_user_id TEXT,
+  requested_by_name TEXT,
+  reviewed_by_user_id TEXT,
+  reviewed_by_name TEXT,
+  reviewed_at_ms BIGINT,
+  rejection_reason TEXT,
+  timestamp_ms BIGINT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Migración idempotente por si la tabla cdo_expenses ya existía de la versión anterior
+ALTER TABLE public.cdo_expenses ADD COLUMN IF NOT EXISTS client_id TEXT REFERENCES public.cdo_clients(id) ON DELETE SET NULL;
+ALTER TABLE public.cdo_expenses ADD COLUMN IF NOT EXISTS client_name TEXT;
+ALTER TABLE public.cdo_expenses ADD COLUMN IF NOT EXISTS expense_kind TEXT NOT NULL DEFAULT 'gasto';
+ALTER TABLE public.cdo_expenses ADD COLUMN IF NOT EXISTS linked_loan_id TEXT;
+ALTER TABLE public.cdo_expenses ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'autorizado';
+ALTER TABLE public.cdo_expenses ADD COLUMN IF NOT EXISTS requested_by_user_id TEXT;
+ALTER TABLE public.cdo_expenses ADD COLUMN IF NOT EXISTS requested_by_name TEXT;
+ALTER TABLE public.cdo_expenses ADD COLUMN IF NOT EXISTS reviewed_by_user_id TEXT;
+ALTER TABLE public.cdo_expenses ADD COLUMN IF NOT EXISTS reviewed_by_name TEXT;
+ALTER TABLE public.cdo_expenses ADD COLUMN IF NOT EXISTS reviewed_at_ms BIGINT;
+ALTER TABLE public.cdo_expenses ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+
+-- 8. PRÉSTAMOS Y TARJETAS / CRÉDITOS BANCARIOS (Ligados a Proyecto/Cliente y Egresos)
+CREATE TABLE IF NOT EXISTS public.cdo_loans_credits (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL CHECK (kind IN ('prestamo', 'credito_bancario')),
+  title TEXT NOT NULL,
+  institution TEXT NOT NULL,
+  card_last4 TEXT,
+  date TEXT NOT NULL,
+  due_date TEXT,
+  company_id TEXT REFERENCES public.cdo_companies(id) ON DELETE SET NULL,
+  company_name TEXT NOT NULL,
+  client_id TEXT REFERENCES public.cdo_clients(id) ON DELETE SET NULL,
+  client_name TEXT,
+  project_id TEXT REFERENCES public.cdo_projects(id) ON DELETE SET NULL,
+  project_name TEXT,
+  account_id TEXT REFERENCES public.cdo_accounts(id) ON DELETE SET NULL,
+  account_name TEXT,
+  original_amount NUMERIC(14, 2) NOT NULL CHECK (original_amount >= 0),
+  paid_amount NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (paid_amount >= 0),
+  remaining_amount NUMERIC(14, 2) NOT NULL DEFAULT 0 CHECK (remaining_amount >= 0),
+  source_expense_id TEXT,
+  status TEXT NOT NULL DEFAULT 'activo' CHECK (status IN ('activo', 'liquidado', 'pendiente_autorizacion', 'rechazado')),
+  notes TEXT,
+  requested_by_user_id TEXT,
+  requested_by_name TEXT,
+  timestamp_ms BIGINT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 9. NOTIFICACIONES Y FLUJO DE AUTORIZACIÓN ENTRE ROLES
+CREATE TABLE IF NOT EXISTS public.cdo_notifications (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL CHECK (type IN ('solicitud_egreso', 'solicitud_prestamo', 'egreso_autorizado', 'egreso_rechazado')),
+  target_role TEXT NOT NULL CHECK (target_role IN ('admin', 'administracion')),
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  expense_id TEXT,
+  loan_id TEXT,
+  amount NUMERIC(14, 2),
+  account_name TEXT,
+  company_name TEXT,
+  project_name TEXT,
+  client_name TEXT,
+  expense_kind TEXT,
+  created_by_user_id TEXT NOT NULL,
+  created_by_name TEXT NOT NULL,
+  read_by_user_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+  action_status TEXT CHECK (action_status IN ('pendiente', 'autorizado', 'rechazado')),
+  rejection_reason TEXT,
   timestamp_ms BIGINT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ============================================================================
--- ÍNDICES PARA CONSULTAS RÁPIDAS
+-- ÍNDICES PARA CONSULTAS Y BÚSQUEDA AVANZADA RÁPIDA
 -- ============================================================================
 CREATE INDEX IF NOT EXISTS idx_cdo_users_username ON public.cdo_users(username);
 CREATE INDEX IF NOT EXISTS idx_cdo_incomes_company ON public.cdo_incomes(company_id);
 CREATE INDEX IF NOT EXISTS idx_cdo_incomes_account ON public.cdo_incomes(account_id);
+CREATE INDEX IF NOT EXISTS idx_cdo_incomes_date ON public.cdo_incomes(date);
 CREATE INDEX IF NOT EXISTS idx_cdo_expenses_company ON public.cdo_expenses(company_id);
 CREATE INDEX IF NOT EXISTS idx_cdo_expenses_account ON public.cdo_expenses(account_id);
 CREATE INDEX IF NOT EXISTS idx_cdo_expenses_project ON public.cdo_expenses(project_id);
+CREATE INDEX IF NOT EXISTS idx_cdo_expenses_date ON public.cdo_expenses(date);
+CREATE INDEX IF NOT EXISTS idx_cdo_expenses_status ON public.cdo_expenses(approval_status);
+CREATE INDEX IF NOT EXISTS idx_cdo_loans_project ON public.cdo_loans_credits(project_id);
+CREATE INDEX IF NOT EXISTS idx_cdo_loans_client ON public.cdo_loans_credits(client_id);
+CREATE INDEX IF NOT EXISTS idx_cdo_notifications_role ON public.cdo_notifications(target_role);
 
 -- ============================================================================
--- VISTAS EN TIEMPO REAL (PARA AUDITORÍA DIRECTA EN SUPABASE)
+-- VISTAS EN TIEMPO REAL (SOLO EGRESOS AUTORIZADOS DESCUENTAN DE BANCOS)
 -- ============================================================================
 CREATE OR REPLACE VIEW public.cdo_bank_balances_view AS
 SELECT
@@ -141,6 +224,7 @@ LEFT JOIN (
 LEFT JOIN (
   SELECT account_id, SUM(total) AS total_egresos
   FROM public.cdo_expenses
+  WHERE approval_status = 'autorizado'
   GROUP BY account_id
 ) egr ON egr.account_id = a.id;
 
@@ -161,6 +245,7 @@ LEFT JOIN (
 LEFT JOIN (
   SELECT company_id, SUM(total) AS total_egresos
   FROM public.cdo_expenses
+  WHERE approval_status = 'autorizado'
   GROUP BY company_id
 ) egr ON egr.company_id = c.id
 LEFT JOIN (
@@ -171,7 +256,7 @@ LEFT JOIN (
 ) b ON b.company_id = c.id;
 
 -- ============================================================================
--- ROW LEVEL SECURITY (RLS) — Acceso para API pública de la app CDO
+-- ROW LEVEL SECURITY (RLS)
 -- ============================================================================
 ALTER TABLE public.cdo_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cdo_companies ENABLE ROW LEVEL SECURITY;
@@ -181,6 +266,8 @@ ALTER TABLE public.cdo_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cdo_concepts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cdo_incomes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cdo_expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cdo_loans_credits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cdo_notifications ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "cdo_users_all" ON public.cdo_users;
 CREATE POLICY "cdo_users_all" ON public.cdo_users FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
@@ -205,6 +292,12 @@ CREATE POLICY "cdo_incomes_all" ON public.cdo_incomes FOR ALL TO anon, authentic
 
 DROP POLICY IF EXISTS "cdo_expenses_all" ON public.cdo_expenses;
 CREATE POLICY "cdo_expenses_all" ON public.cdo_expenses FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "cdo_loans_credits_all" ON public.cdo_loans_credits;
+CREATE POLICY "cdo_loans_credits_all" ON public.cdo_loans_credits FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "cdo_notifications_all" ON public.cdo_notifications;
+CREATE POLICY "cdo_notifications_all" ON public.cdo_notifications FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
 -- ============================================================================
 -- USUARIOS Y CREDENCIALES INICIALES (SHA-256)
@@ -270,8 +363,13 @@ INSERT INTO public.cdo_incomes (id, mov_number, concept, date, company_id, compa
   ('inc-3', 3, 'Venta de Mobiliario Especial', '2026-11-10', 'sa-3', 'S.A. Fabricación 3', 'cli-3', 'Comercializadora del Norte', 'obra-mob', 'Obra Mobiliario Especial', 150000.00, 24000.00, 174000.00, 'acc-banregio', 'Banregio', 1794355200000)
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO public.cdo_expenses (id, mov_number, concept, date, project_id, project_name, company_id, company_name, subtotal, iva, total, account_id, account_name, captured_via, timestamp_ms) VALUES
-  ('egr-1', 1, 'Acero y Varilla · Aceros del Norte', '2026-11-02', 'obra-juarez', 'Obra Juárez 150', 'sa-1', 'S.A. Constructora 1', 45000.00, 7200.00, 52200.00, 'acc-banorte', 'Banorte', 'Manual', 1793664000000),
-  ('egr-2', 2, 'Concreto Premezclado · Cemex', '2026-11-06', 'obra-corp', 'Corporativo Reforma', 'sa-2', 'S.A. Inmobiliaria 2', 120000.00, 19200.00, 139200.00, 'acc-ixe', 'IXE', 'Manual', 1794009600000),
-  ('egr-3', 3, 'Tablero Melamina y Herrajes · Ticket #4481', '2026-11-11', 'obra-mob', 'Obra Mobiliario Especial', 'sa-3', 'S.A. Fabricación 3', 35000.00, 5600.00, 40600.00, 'acc-banregio', 'Banregio', 'WhatsApp OCR', 1794441600000)
+INSERT INTO public.cdo_expenses (id, mov_number, concept, date, project_id, project_name, client_id, client_name, company_id, company_name, subtotal, iva, total, account_id, account_name, captured_via, expense_kind, approval_status, timestamp_ms) VALUES
+  ('egr-1', 1, 'Acero y Varilla · Aceros del Norte', '2026-11-02', 'obra-juarez', 'Obra Juárez 150', 'cli-1', 'Desarrollos Juárez S.A.', 'sa-1', 'S.A. Constructora 1', 45000.00, 7200.00, 52200.00, 'acc-banorte', 'Banorte', 'Manual', 'gasto', 'autorizado', 1793664000000),
+  ('egr-2', 2, 'Concreto Premezclado · Cemex', '2026-11-06', 'obra-corp', 'Corporativo Reforma', 'cli-2', 'Grupo Corporativo Reforma', 'sa-2', 'S.A. Inmobiliaria 2', 120000.00, 19200.00, 139200.00, 'acc-ixe', 'IXE', 'Manual', 'gasto', 'autorizado', 1794009600000),
+  ('egr-3', 3, 'Tablero Melamina y Herrajes · Ticket #4481', '2026-11-11', 'obra-mob', 'Obra Mobiliario Especial', 'cli-3', 'Comercializadora del Norte', 'sa-3', 'S.A. Fabricación 3', 35000.00, 5600.00, 40600.00, 'acc-banregio', 'Banregio', 'WhatsApp OCR', 'gasto', 'autorizado', 1794441600000)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.cdo_loans_credits (id, kind, title, institution, card_last4, date, due_date, company_id, company_name, client_id, client_name, project_id, project_name, account_id, account_name, original_amount, paid_amount, remaining_amount, status, notes, timestamp_ms) VALUES
+  ('loan-1', 'prestamo', 'Préstamo Capital de Trabajo · Obra Juárez 150', 'Financiera Regio', NULL, '2026-11-03', '2027-02-03', 'sa-1', 'S.A. Constructora 1', 'cli-1', 'Desarrollos Juárez S.A.', 'obra-juarez', 'Obra Juárez 150', 'acc-banorte', 'Banorte', 50000.00, 10000.00, 40000.00, 'activo', 'Préstamo asignado a arranque de cimentación', 1793750400000),
+  ('loan-2', 'credito_bancario', 'Tarjeta Corporativa Banorte · Materiales', 'Banorte', '4421', '2026-11-08', '2026-12-15', 'sa-2', 'S.A. Inmobiliaria 2', 'cli-2', 'Grupo Corporativo Reforma', 'obra-corp', 'Corporativo Reforma', 'acc-ixe', 'IXE', 85000.00, 25000.00, 60000.00, 'activo', 'Línea revolvente para insumos de obra', 1794182400000)
 ON CONFLICT (id) DO NOTHING;

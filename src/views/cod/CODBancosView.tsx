@@ -1,6 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import { useCOD } from '../../context/CODContext';
 import {
+  AdvancedFilterBar,
+  AdvancedFilterState,
+  INITIAL_ADVANCED_FILTER,
+  matchesAdvancedFilter,
+} from '../../components/AdvancedFilterBar';
+import {
   Landmark,
   Banknote,
   PlusCircle,
@@ -19,6 +25,8 @@ const fmt = (n: number) =>
 export const CODBancosView: React.FC = () => {
   const {
     companies,
+    clients,
+    costCenters,
     accounts,
     incomes,
     expenses,
@@ -29,6 +37,7 @@ export const CODBancosView: React.FC = () => {
   } = useCOD();
 
   const [selectedAccountId, setSelectedAccountId] = useState<string>('ALL');
+  const [ledgerFilter, setLedgerFilter] = useState<AdvancedFilterState>(INITIAL_ADVANCED_FILTER);
   const [showNewAccountForm, setShowNewAccountForm] = useState(false);
 
   // New account form
@@ -77,24 +86,30 @@ export const CODBancosView: React.FC = () => {
       companyName: i.companyName,
       accountId: i.accountId,
       accountName: i.accountName,
+      projectId: i.projectId,
+      clientId: i.clientId,
       extra: i.projectName ? `Obra: ${i.projectName}` : i.clientName ? `Cliente: ${i.clientName}` : 'Cobro directo',
       amount: i.total,
       timestamp: i.timestamp,
     }));
 
-    const expRows = expenses.map((e) => ({
-      id: e.id,
-      date: e.date,
-      kind: 'egreso' as const,
-      concept: e.concept,
-      companyId: e.companyId,
-      companyName: e.companyName,
-      accountId: e.accountId,
-      accountName: e.accountName,
-      extra: `Obra: ${e.projectName} · ${e.capturedVia}`,
-      amount: e.total,
-      timestamp: e.timestamp,
-    }));
+    const expRows = expenses
+      .filter((e) => e.approvalStatus === 'autorizado')
+      .map((e) => ({
+        id: e.id,
+        date: e.date,
+        kind: 'egreso' as const,
+        concept: e.concept,
+        companyId: e.companyId,
+        companyName: e.companyName,
+        accountId: e.accountId,
+        accountName: e.accountName,
+        projectId: e.projectId,
+        clientId: e.clientId,
+        extra: `Obra: ${e.projectName} · ${e.capturedVia}`,
+        amount: e.total,
+        timestamp: e.timestamp,
+      }));
 
     return [...incRows, ...expRows]
       .filter((m) => {
@@ -102,10 +117,21 @@ export const CODBancosView: React.FC = () => {
           selectedCompanyFilter === 'ALL' || m.companyId === selectedCompanyFilter;
         const matchAcc =
           selectedAccountId === 'ALL' || m.accountId === selectedAccountId;
-        return matchCo && matchAcc;
+        if (!matchCo || !matchAcc) return false;
+
+        return matchesAdvancedFilter(
+          {
+            date: m.date,
+            projectId: m.projectId,
+            clientId: m.clientId,
+            amount: m.amount,
+            searchableText: `${m.concept} ${m.accountName} ${m.companyName} ${m.extra}`,
+          },
+          ledgerFilter
+        );
       })
       .sort((a, b) => b.date.localeCompare(a.date) || b.timestamp - a.timestamp);
-  }, [incomes, expenses, selectedCompanyFilter, selectedAccountId]);
+  }, [incomes, expenses, selectedCompanyFilter, selectedAccountId, ledgerFilter]);
 
   const handleCreateAccount = (e: React.FormEvent) => {
     e.preventDefault();
@@ -498,6 +524,14 @@ export const CODBancosView: React.FC = () => {
             </button>
           )}
         </div>
+
+        <AdvancedFilterBar
+          filter={ledgerFilter}
+          onChange={setLedgerFilter}
+          projects={costCenters}
+          clients={clients}
+          placeholder="Buscar movimiento, cuenta, obra, S.A..."
+        />
 
         <div className="divide-y divide-slate-100">
           {ledgerMovements.map((mov) => (

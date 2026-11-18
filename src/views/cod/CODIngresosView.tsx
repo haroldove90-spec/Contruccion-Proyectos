@@ -1,10 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { useCOD, CODIncome } from '../../context/CODContext';
 import {
+  AdvancedFilterBar,
+  AdvancedFilterState,
+  INITIAL_ADVANCED_FILTER,
+  matchesAdvancedFilter,
+} from '../../components/AdvancedFilterBar';
+import {
   PlusCircle,
   CheckCircle2,
   Trash2,
-  Search,
   Building2,
   Landmark,
   Calculator,
@@ -51,7 +56,7 @@ export const CODIngresosView: React.FC = () => {
   const [companyId, setCompanyId] = useState(companies[0]?.id || '');
   const [accountId, setAccountId] = useState(accounts[0]?.id || '');
   const [subtotalInput, setSubtotalInput] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filter, setFilter] = useState<AdvancedFilterState>(INITIAL_ADVANCED_FILTER);
   const [feedback, setFeedback] = useState<string | null>(null);
 
   // Quick-add inline drawers
@@ -164,19 +169,29 @@ export const CODIngresosView: React.FC = () => {
 
   const filteredIncomes = useMemo(() => {
     return incomes.filter((item) => {
-      const matchesCo =
-        selectedCompanyFilter === 'ALL' || item.companyId === selectedCompanyFilter;
-      const q = searchTerm.trim().toLowerCase();
-      const matchesSearch =
-        !q ||
-        item.concept.toLowerCase().includes(q) ||
-        (item.clientName || '').toLowerCase().includes(q) ||
-        (item.projectName || '').toLowerCase().includes(q) ||
-        item.companyName.toLowerCase().includes(q) ||
-        item.accountName.toLowerCase().includes(q);
-      return matchesCo && matchesSearch;
+      if (selectedCompanyFilter !== 'ALL' && item.companyId !== selectedCompanyFilter) {
+        return false;
+      }
+      const searchableText = [
+        item.concept,
+        item.clientName || '',
+        item.projectName || '',
+        item.companyName,
+        item.accountName,
+      ].join(' ');
+
+      return matchesAdvancedFilter(
+        {
+          date: item.date,
+          projectId: item.projectId,
+          clientId: item.clientId,
+          amount: item.total,
+          searchableText,
+        },
+        filter
+      );
     });
-  }, [incomes, selectedCompanyFilter, searchTerm]);
+  }, [incomes, selectedCompanyFilter, filter]);
 
   const totals = useMemo(() => {
     return filteredIncomes.reduce(
@@ -527,28 +542,24 @@ export const CODIngresosView: React.FC = () => {
       <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
         <div className="px-5 py-3.5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/70">
           <h2 className="text-sm font-black text-[#0B2545] uppercase tracking-wide">
-            REGISTRO CENTRALIZADO DE INGRESOS
+            REGISTRO CENTRALIZADO DE INGRESOS ({filteredIncomes.length})
           </h2>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <div className="relative flex-1 sm:w-64">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar concepto, cliente, S.A..."
-                className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-hidden focus:border-amber-500"
-              />
-            </div>
-            <button
-              onClick={handleExportCSV}
-              className="inline-flex items-center gap-1 px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-bold rounded-lg cursor-pointer shrink-0"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">CSV</span>
-            </button>
-          </div>
+          <button
+            onClick={handleExportCSV}
+            className="inline-flex items-center gap-1 px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-bold rounded-lg cursor-pointer shrink-0 self-start"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Exportar CSV</span>
+          </button>
         </div>
+
+        <AdvancedFilterBar
+          filter={filter}
+          onChange={setFilter}
+          projects={costCenters}
+          clients={clients}
+          placeholder="Buscar concepto, cliente, proyecto, S.A., banco..."
+        />
 
         <div className="overflow-x-auto">
           <table className="w-full text-xs border-collapse">

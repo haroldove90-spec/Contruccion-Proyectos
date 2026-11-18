@@ -10,6 +10,9 @@ import {
   ArrowDownLeft,
   RotateCcw,
   Building2,
+  Bell,
+  Clock,
+  CreditCard,
 } from 'lucide-react';
 
 const fmt = (n: number) =>
@@ -17,23 +20,32 @@ const fmt = (n: number) =>
 
 export const CODResumenView: React.FC = () => {
   const {
+    currentUser,
     companies,
     accounts,
     incomes,
     expenses,
+    loansCredits,
     costCenters,
+    pendingApprovalsCount,
     selectedCompanyFilter,
     resetCODData,
   } = useCOD();
   const { setActiveModule } = useERP();
 
   const [taxMode, setTaxMode] = useState<'con_iva' | 'sin_iva'>('con_iva');
+  const isAdmin = currentUser?.role === 'admin';
+
+  const authorizedExpenses = useMemo(
+    () => expenses.filter((e) => e.approvalStatus === 'autorizado'),
+    [expenses]
+  );
 
   // Dynamic metrics per S.A.
   const companyColumns = useMemo(() => {
     return companies.map((co) => {
       const coIncomes = incomes.filter((i) => i.companyId === co.id);
-      const coExpenses = expenses.filter((e) => e.companyId === co.id);
+      const coExpenses = authorizedExpenses.filter((e) => e.companyId === co.id);
       const coAccounts = accounts.filter((a) => a.companyId === co.id);
 
       const totalIngresosConIva = coIncomes.reduce((s, i) => s + i.total, 0);
@@ -46,7 +58,7 @@ export const CODResumenView: React.FC = () => {
       const totalEgresos = taxMode === 'con_iva' ? totalEgresosConIva : totalEgresosSinIva;
       const flujoNeto = totalIngresos - totalEgresos;
 
-      // Bank balance always equals Initial + Real Incomes (c/IVA) - Real Expenses (c/IVA)
+      // Bank balance always equals Initial + Real Incomes (c/IVA) - Real Authorized Expenses (c/IVA)
       const saldoBancos = coAccounts.reduce((s, a) => s + a.currentBalance, 0);
       const saldoInicial = coAccounts.reduce((s, a) => s + a.initialBalance, 0);
 
@@ -61,7 +73,7 @@ export const CODResumenView: React.FC = () => {
         saldoInicial,
       };
     });
-  }, [companies, incomes, expenses, accounts, taxMode]);
+  }, [companies, incomes, authorizedExpenses, accounts, taxMode]);
 
   const visibleColumns = useMemo(() => {
     if (selectedCompanyFilter === 'ALL') return companyColumns;
@@ -89,12 +101,22 @@ export const CODResumenView: React.FC = () => {
     );
   }, [visibleColumns]);
 
-  // Gasto acumulado por Obra (Centro de Costos)
+  const activeLoansTotal = useMemo(() => {
+    return loansCredits
+      .filter(
+        (l) =>
+          (selectedCompanyFilter === 'ALL' || l.companyId === selectedCompanyFilter) &&
+          l.status === 'activo'
+      )
+      .reduce((s, l) => s + l.remainingAmount, 0);
+  }, [loansCredits, selectedCompanyFilter]);
+
+  // Gasto acumulado por Obra (Centro de Costos) - only authorized expenses
   const costCenterSummary = useMemo(() => {
     return costCenters
       .map((obra) => {
         const companyName = companies.find((c) => c.id === obra.companyId)?.name || '';
-        const obraExpenses = expenses.filter((e) => e.projectId === obra.id);
+        const obraExpenses = authorizedExpenses.filter((e) => e.projectId === obra.id);
         const spent = obraExpenses.reduce(
           (s, e) => s + (taxMode === 'con_iva' ? e.total : e.subtotal),
           0
@@ -107,10 +129,30 @@ export const CODResumenView: React.FC = () => {
         };
       })
       .filter((item) => selectedCompanyFilter === 'ALL' || item.obra.companyId === selectedCompanyFilter);
-  }, [costCenters, companies, expenses, selectedCompanyFilter, taxMode]);
+  }, [costCenters, companies, authorizedExpenses, selectedCompanyFilter, taxMode]);
 
   return (
     <div className="space-y-5">
+      {/* Pending Approvals Alert Banner */}
+      {pendingApprovalsCount > 0 && (
+        <div className="bg-amber-50 border border-amber-300 rounded-2xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5 text-xs text-amber-950">
+            <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              Hay <strong>{pendingApprovalsCount}</strong> solicitud(es) de egresos / préstamos pendientes de autorización del Admin (aún no descontadas de bancos).
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveModule('cdo_notificaciones')}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl cursor-pointer self-start"
+          >
+            <Bell className="w-3.5 h-3.5 text-amber-400" />
+            <span>{isAdmin ? 'Revisar y Autorizar' : 'Ver Notificaciones'}</span>
+          </button>
+        </div>
+      )}
+
       {/* Header Row */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
@@ -164,20 +206,30 @@ export const CODResumenView: React.FC = () => {
           </button>
 
           <button
+            onClick={() => setActiveModule('cdo_prestamos')}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+          >
+            <CreditCard className="w-3.5 h-3.5" />
+            <span>Préstamos (${fmt(activeLoansTotal)})</span>
+          </button>
+
+          <button
             onClick={() => setActiveModule('cdo_catalogos')}
             className="inline-flex items-center gap-1 px-3 py-2 bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 text-xs font-bold rounded-xl transition-colors cursor-pointer"
           >
             <span>Catálogos</span>
           </button>
 
-          <button
-            onClick={resetCODData}
-            title="Restablecer datos base del ejemplo"
-            className="inline-flex items-center gap-1 px-2.5 py-2 bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Restablecer</span>
-          </button>
+          {isAdmin && (
+            <button
+              onClick={resetCODData}
+              title="Restablecer datos base del ejemplo"
+              className="inline-flex items-center gap-1 px-2.5 py-2 bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Restablecer</span>
+            </button>
+          )}
         </div>
       </div>
 

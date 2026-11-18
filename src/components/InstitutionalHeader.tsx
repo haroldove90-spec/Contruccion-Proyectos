@@ -4,7 +4,7 @@ import { useCOD } from '../context/CODContext';
 import { BrandLogo } from './BrandLogo';
 import { PWAInstallButton } from './PWAInstallButton';
 import { ExecutivePDFModal } from './ExecutivePDFModal';
-import { LogOut, Building2, Printer, UserCircle2 } from 'lucide-react';
+import { LogOut, Building2, Printer, UserCircle2, Bell } from 'lucide-react';
 import { UserRole } from '../types/erp';
 
 const ROLE_NAMES: Record<UserRole, { label: string; badgeClass: string }> = {
@@ -20,10 +20,16 @@ export const InstitutionalHeader: React.FC<{ onToggleSidebar?: () => void }> = (
     selectedCompanyFilter,
     setSelectedCompanyFilter,
     currentUser,
+    unreadNotificationsCount,
+    pendingApprovalsCount,
     logout,
   } = useCOD();
 
   const activeRoleData = currentRole ? ROLE_NAMES[currentRole] : null;
+  const bellBadge =
+    currentRole === 'admin'
+      ? Math.max(unreadNotificationsCount, pendingApprovalsCount)
+      : unreadNotificationsCount;
 
   const handleLogout = () => {
     logout();
@@ -54,8 +60,24 @@ export const InstitutionalHeader: React.FC<{ onToggleSidebar?: () => void }> = (
           </div>
         </div>
 
-        {/* Right: Active User + Role, Profile Shortcut, PDF, PWA Install & Logout */}
+        {/* Right: Notifications Bell, Active User + Role, PDF, PWA Install & Logout */}
         <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+          {currentUser && (
+            <button
+              type="button"
+              onClick={() => setActiveModule('cdo_notificaciones')}
+              title="Notificaciones y Autorizaciones"
+              className="relative p-2 rounded-lg bg-slate-100 hover:bg-amber-50 text-slate-700 hover:text-amber-700 border border-slate-200 transition-colors cursor-pointer"
+            >
+              <Bell className="w-4 h-4" />
+              {bellBadge > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-600 text-white text-[10px] font-black flex items-center justify-center">
+                  {bellBadge}
+                </span>
+              )}
+            </button>
+          )}
+
           {currentUser && activeRoleData && (
             <button
               type="button"

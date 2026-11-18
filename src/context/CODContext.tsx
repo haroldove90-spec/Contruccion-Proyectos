@@ -15,6 +15,9 @@ import {
   dbDeleteIncome,
   dbUpsertExpense,
   dbDeleteExpense,
+  dbUpsertLoanCredit,
+  dbDeleteLoanCredit,
+  dbUpsertNotification,
   dbUpsertUser,
   dbDeleteUser,
   dbClearMovementsToZero,
@@ -96,6 +99,9 @@ export interface CODIncome {
   timestamp: number;
 }
 
+export type ExpenseKind = 'gasto' | 'prestamo' | 'credito_bancario' | 'abono_prestamo';
+export type ExpenseApprovalStatus = 'pendiente' | 'autorizado' | 'rechazado';
+
 export interface CODExpense {
   id: string;
   movNumber: number;
@@ -103,6 +109,8 @@ export interface CODExpense {
   date: string;
   projectId: string;
   projectName: string;
+  clientId?: string;
+  clientName?: string;
   companyId: string;
   companyName: string;
   subtotal: number;
@@ -111,12 +119,70 @@ export interface CODExpense {
   accountId: string;
   accountName: string;
   capturedVia: 'Manual' | 'WhatsApp OCR';
+  expenseKind: ExpenseKind;
+  linkedLoanId?: string;
+  approvalStatus: ExpenseApprovalStatus;
+  requestedByUserId?: string;
+  requestedByName?: string;
+  reviewedByUserId?: string;
+  reviewedByName?: string;
+  reviewedAt?: number;
+  rejectionReason?: string;
+  timestamp: number;
+}
+
+export interface CDOLoanCredit {
+  id: string;
+  kind: 'prestamo' | 'credito_bancario';
+  title: string;
+  institution: string;
+  cardLast4?: string;
+  date: string;
+  dueDate?: string;
+  companyId: string;
+  companyName: string;
+  clientId?: string;
+  clientName?: string;
+  projectId?: string;
+  projectName?: string;
+  accountId?: string;
+  accountName?: string;
+  originalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  sourceExpenseId?: string;
+  status: 'activo' | 'liquidado' | 'pendiente_autorizacion' | 'rechazado';
+  notes?: string;
+  requestedByUserId?: string;
+  requestedByName?: string;
+  timestamp: number;
+}
+
+export interface CDONotification {
+  id: string;
+  type: 'solicitud_egreso' | 'solicitud_prestamo' | 'egreso_autorizado' | 'egreso_rechazado';
+  targetRole: 'admin' | 'administracion';
+  title: string;
+  message: string;
+  expenseId?: string;
+  loanId?: string;
+  amount?: number;
+  accountName?: string;
+  companyName?: string;
+  projectName?: string;
+  clientName?: string;
+  expenseKind?: ExpenseKind;
+  createdByUserId: string;
+  createdByName: string;
+  readByUserIds: string[];
+  actionStatus?: 'pendiente' | 'autorizado' | 'rechazado';
+  rejectionReason?: string;
   timestamp: number;
 }
 
 export interface CODSyncBanner {
   id: string;
-  kind: 'ingreso' | 'egreso' | 'cuenta' | 'catalogo' | 'perfil';
+  kind: 'ingreso' | 'egreso' | 'cuenta' | 'catalogo' | 'perfil' | 'prestamo' | 'notificacion';
   title: string;
   detail: string;
   timestamp: number;
@@ -269,6 +335,8 @@ export const INITIAL_COD_EXPENSES: CODExpense[] = [
     accountId: 'acc-banorte',
     accountName: 'Banorte',
     capturedVia: 'Manual',
+    expenseKind: 'gasto',
+    approvalStatus: 'autorizado',
     timestamp: 1793664000000,
   },
   {
@@ -286,6 +354,8 @@ export const INITIAL_COD_EXPENSES: CODExpense[] = [
     accountId: 'acc-ixe',
     accountName: 'IXE',
     capturedVia: 'Manual',
+    expenseKind: 'gasto',
+    approvalStatus: 'autorizado',
     timestamp: 1794009600000,
   },
   {
@@ -303,7 +373,57 @@ export const INITIAL_COD_EXPENSES: CODExpense[] = [
     accountId: 'acc-banregio',
     accountName: 'Banregio',
     capturedVia: 'WhatsApp OCR',
+    expenseKind: 'gasto',
+    approvalStatus: 'autorizado',
     timestamp: 1794441600000,
+  },
+];
+
+export const INITIAL_COD_LOANS_CREDITS: CDOLoanCredit[] = [
+  {
+    id: 'loan-1',
+    kind: 'prestamo',
+    title: 'Préstamo Capital de Trabajo · Obra Juárez 150',
+    institution: 'Financiera Regio',
+    date: '2026-11-03',
+    dueDate: '2027-02-03',
+    companyId: 'sa-1',
+    companyName: 'S.A. Constructora 1',
+    clientId: 'cli-1',
+    clientName: 'Desarrollos Juárez S.A.',
+    projectId: 'obra-juarez',
+    projectName: 'Obra Juárez 150',
+    accountId: 'acc-banorte',
+    accountName: 'Banorte',
+    originalAmount: 50000,
+    paidAmount: 10000,
+    remainingAmount: 40000,
+    status: 'activo',
+    notes: 'Préstamo asignado a arranque de cimentación',
+    timestamp: 1793750400000,
+  },
+  {
+    id: 'loan-2',
+    kind: 'credito_bancario',
+    title: 'Tarjeta Corporativa Banorte · Materiales',
+    institution: 'Banorte',
+    cardLast4: '4421',
+    date: '2026-11-08',
+    dueDate: '2026-12-15',
+    companyId: 'sa-2',
+    companyName: 'S.A. Inmobiliaria 2',
+    clientId: 'cli-2',
+    clientName: 'Grupo Corporativo Reforma',
+    projectId: 'obra-corp',
+    projectName: 'Corporativo Reforma',
+    accountId: 'acc-ixe',
+    accountName: 'IXE',
+    originalAmount: 85000,
+    paidAmount: 25000,
+    remainingAmount: 60000,
+    status: 'activo',
+    notes: 'Línea revolvente para insumos de obra',
+    timestamp: 1794182400000,
   },
 ];
 
@@ -321,10 +441,32 @@ export interface AddCODExpenseInput {
   concept: string;
   date: string;
   projectId: string;
+  clientId?: string;
   companyId: string;
   accountId: string;
   subtotal: number;
   capturedVia: 'Manual' | 'WhatsApp OCR';
+  expenseKind?: ExpenseKind;
+  loanInstitution?: string;
+  cardLast4?: string;
+  dueDate?: string;
+  linkedLoanId?: string;
+}
+
+export interface AddCDOLoanCreditInput {
+  kind: 'prestamo' | 'credito_bancario';
+  title: string;
+  institution: string;
+  cardLast4?: string;
+  date: string;
+  dueDate?: string;
+  companyId: string;
+  clientId?: string;
+  projectId?: string;
+  accountId?: string;
+  originalAmount: number;
+  paidAmount?: number;
+  notes?: string;
 }
 
 export interface AddCODAccountInput {
@@ -370,6 +512,10 @@ interface CODContextType {
   concepts: CODConceptItem[];
   incomes: CODIncome[];
   expenses: CODExpense[];
+  loansCredits: CDOLoanCredit[];
+  notifications: CDONotification[];
+  unreadNotificationsCount: number;
+  pendingApprovalsCount: number;
   selectedCompanyFilter: string;
   setSelectedCompanyFilter: (id: string) => void;
   lastSync: CODSyncBanner | null;
@@ -380,10 +526,28 @@ interface CODContextType {
   updateIncome: (id: string, input: AddCODIncomeInput) => void;
   deleteIncome: (id: string) => void;
 
-  // Expenses CRUD
+  // Expenses CRUD & Approvals
   addExpense: (input: AddCODExpenseInput) => CODExpense;
   updateExpense: (id: string, input: AddCODExpenseInput) => void;
   deleteExpense: (id: string) => void;
+  approveExpense: (expenseId: string) => void;
+  rejectExpense: (expenseId: string, reason?: string) => void;
+
+  // Loans & Bank Credit Cards CRUD
+  addLoanCredit: (input: AddCDOLoanCreditInput) => CDOLoanCredit;
+  updateLoanCredit: (id: string, data: Partial<Omit<CDOLoanCredit, 'id'>>) => void;
+  registerLoanPayment: (
+    loanId: string,
+    amount: number,
+    options?: { deductFromAccountId?: string; date?: string; notes?: string }
+  ) => void;
+  approveLoanDirect: (loanId: string) => void;
+  rejectLoanDirect: (loanId: string, reason?: string) => void;
+  deleteLoanCredit: (id: string) => void;
+
+  // Notifications
+  markNotificationRead: (id: string) => void;
+  markAllNotificationsRead: () => void;
 
   // Companies (S.A.) CRUD
   addCompany: (name: string, shortName?: string, rfc?: string) => CODCompany;
@@ -429,6 +593,8 @@ const STORAGE_KEYS = {
   concepts: 'pc_cdo_v2_concepts',
   incomes: 'pc_cdo_v2_incomes',
   expenses: 'pc_cdo_v2_expenses',
+  loans: 'pc_cdo_v2_loans',
+  notifications: 'pc_cdo_v2_notifications',
 };
 
 function loadCODStored<T>(key: string, fallback: T): T {
@@ -475,7 +641,17 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     loadCODStored(STORAGE_KEYS.incomes, INITIAL_COD_INCOMES)
   );
   const [rawExpenses, setRawExpenses] = useState<CODExpense[]>(() =>
-    loadCODStored(STORAGE_KEYS.expenses, INITIAL_COD_EXPENSES)
+    loadCODStored(STORAGE_KEYS.expenses, INITIAL_COD_EXPENSES).map((exp) => ({
+      ...exp,
+      expenseKind: exp.expenseKind || 'gasto',
+      approvalStatus: exp.approvalStatus || 'autorizado',
+    }))
+  );
+  const [rawLoans, setRawLoans] = useState<CDOLoanCredit[]>(() =>
+    loadCODStored(STORAGE_KEYS.loans, INITIAL_COD_LOANS_CREDITS)
+  );
+  const [notifications, setNotifications] = useState<CDONotification[]>(() =>
+    loadCODStored(STORAGE_KEYS.notifications, [])
   );
   const [lastSync, setLastSync] = useState<CODSyncBanner | null>(null);
 
@@ -495,7 +671,15 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setBaseAccounts(remote.accounts);
       if (remote.concepts.length > 0) setConcepts(remote.concepts);
       setRawIncomes(remote.incomes);
-      setRawExpenses(remote.expenses);
+      setRawExpenses(
+        remote.expenses.map((exp) => ({
+          ...exp,
+          expenseKind: exp.expenseKind || 'gasto',
+          approvalStatus: exp.approvalStatus || 'autorizado',
+        }))
+      );
+      if (remote.loansCredits.length > 0) setRawLoans(remote.loansCredits);
+      if (remote.notifications.length > 0) setNotifications(remote.notifications);
     });
     return () => {
       active = false;
@@ -541,6 +725,14 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.expenses, JSON.stringify(rawExpenses));
   }, [rawExpenses]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.loans, JSON.stringify(rawLoans));
+  }, [rawLoans]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.notifications, JSON.stringify(notifications));
+  }, [notifications]);
 
   const currentUser = useMemo<CDOUser | null>(() => {
     if (!currentUserId) return null;
@@ -731,16 +923,57 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const comp = companies.find((c) => c.id === exp.companyId);
       const acc = baseAccounts.find((a) => a.id === exp.accountId);
       const proj = costCenters.find((p) => p.id === exp.projectId);
+      const cli = exp.clientId
+        ? clients.find((c) => c.id === exp.clientId)
+        : proj?.clientId
+        ? clients.find((c) => c.id === proj.clientId)
+        : undefined;
       return {
         ...exp,
         companyName: comp?.name || exp.companyName,
         accountName: acc?.name || exp.accountName,
         projectName: proj?.name || exp.projectName,
+        clientId: cli?.id || exp.clientId,
+        clientName: cli?.name || exp.clientName,
+        expenseKind: exp.expenseKind || 'gasto',
+        approvalStatus: exp.approvalStatus || 'autorizado',
       };
     });
-  }, [rawExpenses, companies, baseAccounts, costCenters]);
+  }, [rawExpenses, companies, baseAccounts, costCenters, clients]);
 
-  // Real-time automatic bank & cash balance computation: Saldo Inicial + Ingresos - Egresos
+  const loansCredits = useMemo<CDOLoanCredit[]>(() => {
+    return rawLoans.map((loan) => {
+      const comp = companies.find((c) => c.id === loan.companyId);
+      const acc = loan.accountId ? baseAccounts.find((a) => a.id === loan.accountId) : undefined;
+      const proj = loan.projectId ? costCenters.find((p) => p.id === loan.projectId) : undefined;
+      const cli = loan.clientId
+        ? clients.find((c) => c.id === loan.clientId)
+        : proj?.clientId
+        ? clients.find((c) => c.id === proj.clientId)
+        : undefined;
+      const paid = round2(Math.max(0, loan.paidAmount));
+      const remaining = round2(Math.max(0, loan.originalAmount - paid));
+      const computedStatus =
+        loan.status === 'pendiente_autorizacion' || loan.status === 'rechazado'
+          ? loan.status
+          : remaining <= 0
+          ? 'liquidado'
+          : 'activo';
+      return {
+        ...loan,
+        companyName: comp?.name || loan.companyName,
+        accountName: acc?.name || loan.accountName,
+        projectName: proj?.name || loan.projectName,
+        clientId: cli?.id || loan.clientId,
+        clientName: cli?.name || loan.clientName,
+        paidAmount: paid,
+        remainingAmount: remaining,
+        status: computedStatus,
+      };
+    });
+  }, [rawLoans, companies, baseAccounts, costCenters, clients]);
+
+  // Real-time automatic bank & cash balance computation: Saldo Inicial + Ingresos - Egresos Autorizados
   const accounts = useMemo<CODAccountComputed[]>(() => {
     return baseAccounts.map((acc) => {
       const companyName = companies.find((c) => c.id === acc.companyId)?.name || acc.companyId;
@@ -751,7 +984,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
       const totalExpenses = round2(
         expenses
-          .filter((exp) => exp.accountId === acc.id)
+          .filter((exp) => exp.accountId === acc.id && exp.approvalStatus === 'autorizado')
           .reduce((sum, exp) => sum + exp.total, 0)
       );
       const currentBalance = round2(acc.initialBalance + totalIncomes - totalExpenses);
@@ -765,6 +998,20 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     });
   }, [baseAccounts, companies, incomes, expenses]);
+
+  const unreadNotificationsCount = useMemo(() => {
+    if (!currentUser) return 0;
+    return notifications.filter(
+      (n) => n.targetRole === currentUser.role && !n.readByUserIds.includes(currentUser.id)
+    ).length;
+  }, [notifications, currentUser]);
+
+  const pendingApprovalsCount = useMemo(() => {
+    return (
+      expenses.filter((e) => e.approvalStatus === 'pendiente').length +
+      loansCredits.filter((l) => l.status === 'pendiente_autorizacion' && !l.sourceExpenseId).length
+    );
+  }, [expenses, loansCredits]);
 
   // INCOMES CRUD
   const addIncome = (input: AddCODIncomeInput): CODIncome => {
@@ -863,11 +1110,16 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     void dbDeleteIncome(id).catch(console.error);
   };
 
-  // EXPENSES CRUD
+  // EXPENSES CRUD + LOAN SYNC + NOTIFICATION WORKFLOW
   const addExpense = (input: AddCODExpenseInput): CODExpense => {
     const company = companies.find((c) => c.id === input.companyId) || companies[0];
     const account = baseAccounts.find((a) => a.id === input.accountId) || baseAccounts[0];
     const project = costCenters.find((p) => p.id === input.projectId) || costCenters[0];
+    const client = input.clientId
+      ? clients.find((c) => c.id === input.clientId)
+      : project?.clientId
+      ? clients.find((c) => c.id === project.clientId)
+      : undefined;
 
     const subtotal = round2(Math.max(0, input.subtotal));
     const iva = round2(subtotal * 0.16);
@@ -875,13 +1127,74 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const nextMov =
       rawExpenses.length > 0 ? Math.max(...rawExpenses.map((e) => e.movNumber)) + 1 : 1;
 
+    const now = Date.now();
+    const isAdmin = currentUser?.role === 'admin';
+    const approvalStatus: ExpenseApprovalStatus = isAdmin ? 'autorizado' : 'pendiente';
+    const expenseKind: ExpenseKind = input.expenseKind || 'gasto';
+    const expenseId = `egr-${now}`;
+
+    let linkedLoanId = input.linkedLoanId;
+
+    // Sync into Préstamos y Tarjetas Bancarias if creating a loan or bank credit from Egresos
+    if (expenseKind === 'prestamo' || expenseKind === 'credito_bancario') {
+      const loanId = `loan-${now}`;
+      linkedLoanId = loanId;
+      const newLoan: CDOLoanCredit = {
+        id: loanId,
+        kind: expenseKind,
+        title: input.concept.trim(),
+        institution: input.loanInstitution?.trim() || account?.name || 'Banco / Financiera',
+        cardLast4: input.cardLast4?.trim() || undefined,
+        date: input.date,
+        dueDate: input.dueDate?.trim() || undefined,
+        companyId: company?.id || input.companyId,
+        companyName: company?.name || input.companyId,
+        clientId: client?.id,
+        clientName: client?.name,
+        projectId: project?.id || input.projectId,
+        projectName: project?.name || 'Obra General',
+        accountId: account?.id || input.accountId,
+        accountName: account?.name || input.accountId,
+        originalAmount: total,
+        paidAmount: 0,
+        remainingAmount: total,
+        sourceExpenseId: expenseId,
+        status: isAdmin ? 'activo' : 'pendiente_autorizacion',
+        notes: `Sincronizado desde Egreso #${nextMov}`,
+        requestedByUserId: currentUser?.id,
+        requestedByName: currentUser?.fullName,
+        timestamp: now,
+      };
+      setRawLoans((prev) => [newLoan, ...prev]);
+      void dbUpsertLoanCredit(newLoan).catch(console.error);
+    } else if (expenseKind === 'abono_prestamo' && linkedLoanId && isAdmin) {
+      // Immediately apply payment when Admin records a payment expense
+      setRawLoans((prev) =>
+        prev.map((loan) => {
+          if (loan.id !== linkedLoanId) return loan;
+          const nextPaid = round2(loan.paidAmount + total);
+          const nextRemaining = round2(Math.max(0, loan.originalAmount - nextPaid));
+          const updatedLoan: CDOLoanCredit = {
+            ...loan,
+            paidAmount: nextPaid,
+            remainingAmount: nextRemaining,
+            status: nextRemaining <= 0 ? 'liquidado' : 'activo',
+          };
+          void dbUpsertLoanCredit(updatedLoan).catch(console.error);
+          return updatedLoan;
+        })
+      );
+    }
+
     const record: CODExpense = {
-      id: `egr-${Date.now()}`,
+      id: expenseId,
       movNumber: nextMov,
       concept: input.concept.trim(),
       date: input.date,
       projectId: project?.id || input.projectId,
       projectName: project?.name || 'Obra General',
+      clientId: client?.id,
+      clientName: client?.name,
       companyId: company?.id || input.companyId,
       companyName: company?.name || input.companyId,
       subtotal,
@@ -890,26 +1203,285 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       accountId: account?.id || input.accountId,
       accountName: account?.name || input.accountId,
       capturedVia: input.capturedVia,
-      timestamp: Date.now(),
+      expenseKind,
+      linkedLoanId,
+      approvalStatus,
+      requestedByUserId: currentUser?.id,
+      requestedByName: currentUser?.fullName || 'Usuario',
+      reviewedByUserId: isAdmin ? currentUser?.id : undefined,
+      reviewedByName: isAdmin ? currentUser?.fullName : undefined,
+      reviewedAt: isAdmin ? now : undefined,
+      timestamp: now,
     };
 
     setRawExpenses((prev) => [...prev, record]);
     void dbUpsertExpense(record).catch(console.error);
-    setLastSync({
-      id: `sync-${Date.now()}`,
-      kind: 'egreso',
-      title: `Egreso #${nextMov} (${input.capturedVia}) sincronizado`,
-      detail: `-$${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })} c/IVA de ${record.accountName} · Obra: ${record.projectName} (${record.companyName})`,
-      timestamp: Date.now(),
-    });
+
+    if (!isAdmin) {
+      const kindLabel =
+        expenseKind === 'prestamo'
+          ? 'Préstamo'
+          : expenseKind === 'credito_bancario'
+          ? 'Crédito / Tarjeta Bancaria'
+          : expenseKind === 'abono_prestamo'
+          ? 'Abono a Préstamo/Crédito'
+          : 'Egreso';
+
+      const notif: CDONotification = {
+        id: `notif-${now}`,
+        type:
+          expenseKind === 'prestamo' || expenseKind === 'credito_bancario'
+            ? 'solicitud_prestamo'
+            : 'solicitud_egreso',
+        targetRole: 'admin',
+        title: `Solicitud de Autorización · ${kindLabel} ($${total.toLocaleString('es-MX', {
+          minimumFractionDigits: 2,
+        })})`,
+        message: `${currentUser?.fullName || 'Administración'} solicita retirar $${total.toLocaleString(
+          'es-MX',
+          { minimumFractionDigits: 2 }
+        )} de la cuenta ${record.accountName} (${record.companyName}) · Proyecto: ${
+          record.projectName
+        }${record.clientName ? ` · Cliente: ${record.clientName}` : ''}. Concepto: ${record.concept}`,
+        expenseId: record.id,
+        loanId: linkedLoanId,
+        amount: total,
+        accountName: record.accountName,
+        companyName: record.companyName,
+        projectName: record.projectName,
+        clientName: record.clientName,
+        expenseKind,
+        createdByUserId: currentUser?.id || 'usr-contadora',
+        createdByName: currentUser?.fullName || 'Administración',
+        readByUserIds: [],
+        actionStatus: 'pendiente',
+        timestamp: now,
+      };
+      setNotifications((prev) => [notif, ...prev]);
+      void dbUpsertNotification(notif).catch(console.error);
+
+      setLastSync({
+        id: `sync-${now}`,
+        kind: 'notificacion',
+        title: `Solicitud #${nextMov} enviada al Admin`,
+        detail: `Pendiente de autorizar salida de $${total.toLocaleString('es-MX', {
+          minimumFractionDigits: 2,
+        })} en ${record.accountName}`,
+        timestamp: now,
+      });
+    } else {
+      setLastSync({
+        id: `sync-${now}`,
+        kind: expenseKind === 'prestamo' || expenseKind === 'credito_bancario' ? 'prestamo' : 'egreso',
+        title:
+          expenseKind === 'prestamo'
+            ? `Egreso #${nextMov} y Préstamo sincronizados`
+            : expenseKind === 'credito_bancario'
+            ? `Egreso #${nextMov} y Crédito Bancario sincronizados`
+            : `Egreso #${nextMov} (${input.capturedVia}) sincronizado`,
+        detail: `-$${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })} c/IVA de ${record.accountName} · Obra: ${record.projectName} (${record.companyName})`,
+        timestamp: now,
+      });
+    }
 
     return record;
+  };
+
+  const approveExpense = (expenseId: string) => {
+    if (currentUser?.role !== 'admin') return;
+    const target = expenses.find((e) => e.id === expenseId);
+    if (!target || target.approvalStatus === 'autorizado') return;
+    const now = Date.now();
+
+    setRawExpenses((prev) =>
+      prev.map((item) => {
+        if (item.id !== expenseId) return item;
+        const updated: CODExpense = {
+          ...item,
+          approvalStatus: 'autorizado',
+          reviewedByUserId: currentUser.id,
+          reviewedByName: currentUser.fullName,
+          reviewedAt: now,
+          rejectionReason: undefined,
+        };
+        void dbUpsertExpense(updated).catch(console.error);
+        return updated;
+      })
+    );
+
+    if (target.linkedLoanId) {
+      setRawLoans((prev) =>
+        prev.map((loan) => {
+          if (loan.id !== target.linkedLoanId) return loan;
+          if (target.expenseKind === 'abono_prestamo') {
+            const nextPaid = round2(loan.paidAmount + target.total);
+            const nextRem = round2(Math.max(0, loan.originalAmount - nextPaid));
+            const updatedLoan: CDOLoanCredit = {
+              ...loan,
+              paidAmount: nextPaid,
+              remainingAmount: nextRem,
+              status: nextRem <= 0 ? 'liquidado' : 'activo',
+            };
+            void dbUpsertLoanCredit(updatedLoan).catch(console.error);
+            return updatedLoan;
+          }
+          const updatedLoan: CDOLoanCredit = {
+            ...loan,
+            status: loan.remainingAmount <= 0 ? 'liquidado' : 'activo',
+          };
+          void dbUpsertLoanCredit(updatedLoan).catch(console.error);
+          return updatedLoan;
+        })
+      );
+    }
+
+    setNotifications((prev) => {
+      const updatedExisting = prev.map((n) => {
+        if (n.expenseId === expenseId && n.actionStatus === 'pendiente') {
+          const nextN: CDONotification = {
+            ...n,
+            actionStatus: 'autorizado',
+            readByUserIds: n.readByUserIds.includes(currentUser.id)
+              ? n.readByUserIds
+              : [...n.readByUserIds, currentUser.id],
+          };
+          void dbUpsertNotification(nextN).catch(console.error);
+          return nextN;
+        }
+        return n;
+      });
+
+      const replyNotif: CDONotification = {
+        id: `notif-res-${now}`,
+        type: 'egreso_autorizado',
+        targetRole: 'administracion',
+        title: `Egreso #${target.movNumber} Autorizado`,
+        message: `${currentUser.fullName} autorizó la salida de $${target.total.toLocaleString(
+          'es-MX',
+          { minimumFractionDigits: 2 }
+        )} de ${target.accountName} (${target.concept}). Aplicado a bancos y módulos.`,
+        expenseId: target.id,
+        loanId: target.linkedLoanId,
+        amount: target.total,
+        accountName: target.accountName,
+        companyName: target.companyName,
+        projectName: target.projectName,
+        clientName: target.clientName,
+        expenseKind: target.expenseKind,
+        createdByUserId: currentUser.id,
+        createdByName: currentUser.fullName,
+        readByUserIds: [],
+        actionStatus: 'autorizado',
+        timestamp: now,
+      };
+      void dbUpsertNotification(replyNotif).catch(console.error);
+      return [replyNotif, ...updatedExisting];
+    });
+
+    setLastSync({
+      id: `sync-${now}`,
+      kind: 'egreso',
+      title: `Egreso #${target.movNumber} autorizado`,
+      detail: `-$${target.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })} descontado de ${target.accountName}`,
+      timestamp: now,
+    });
+  };
+
+  const rejectExpense = (expenseId: string, reason?: string) => {
+    if (currentUser?.role !== 'admin') return;
+    const target = expenses.find((e) => e.id === expenseId);
+    if (!target || target.approvalStatus === 'rechazado') return;
+    const now = Date.now();
+    const cleanReason = reason?.trim() || 'Rechazado por dirección / administración';
+
+    setRawExpenses((prev) =>
+      prev.map((item) => {
+        if (item.id !== expenseId) return item;
+        const updated: CODExpense = {
+          ...item,
+          approvalStatus: 'rechazado',
+          reviewedByUserId: currentUser.id,
+          reviewedByName: currentUser.fullName,
+          reviewedAt: now,
+          rejectionReason: cleanReason,
+        };
+        void dbUpsertExpense(updated).catch(console.error);
+        return updated;
+      })
+    );
+
+    if (
+      target.linkedLoanId &&
+      (target.expenseKind === 'prestamo' || target.expenseKind === 'credito_bancario')
+    ) {
+      setRawLoans((prev) =>
+        prev.map((loan) => {
+          if (loan.id !== target.linkedLoanId) return loan;
+          const updatedLoan: CDOLoanCredit = {
+            ...loan,
+            status: 'rechazado',
+          };
+          void dbUpsertLoanCredit(updatedLoan).catch(console.error);
+          return updatedLoan;
+        })
+      );
+    }
+
+    setNotifications((prev) => {
+      const updatedExisting = prev.map((n) => {
+        if (n.expenseId === expenseId && n.actionStatus === 'pendiente') {
+          const nextN: CDONotification = {
+            ...n,
+            actionStatus: 'rechazado',
+            rejectionReason: cleanReason,
+            readByUserIds: n.readByUserIds.includes(currentUser.id)
+              ? n.readByUserIds
+              : [...n.readByUserIds, currentUser.id],
+          };
+          void dbUpsertNotification(nextN).catch(console.error);
+          return nextN;
+        }
+        return n;
+      });
+
+      const replyNotif: CDONotification = {
+        id: `notif-rej-${now}`,
+        type: 'egreso_rechazado',
+        targetRole: 'administracion',
+        title: `Egreso #${target.movNumber} Rechazado`,
+        message: `${currentUser.fullName} rechazó el movimiento de $${target.total.toLocaleString(
+          'es-MX',
+          { minimumFractionDigits: 2 }
+        )} en ${target.accountName}. Motivo: ${cleanReason}`,
+        expenseId: target.id,
+        loanId: target.linkedLoanId,
+        amount: target.total,
+        accountName: target.accountName,
+        companyName: target.companyName,
+        projectName: target.projectName,
+        clientName: target.clientName,
+        expenseKind: target.expenseKind,
+        createdByUserId: currentUser.id,
+        createdByName: currentUser.fullName,
+        readByUserIds: [],
+        actionStatus: 'rechazado',
+        rejectionReason: cleanReason,
+        timestamp: now,
+      };
+      void dbUpsertNotification(replyNotif).catch(console.error);
+      return [replyNotif, ...updatedExisting];
+    });
   };
 
   const updateExpense = (id: string, input: AddCODExpenseInput) => {
     const company = companies.find((c) => c.id === input.companyId) || companies[0];
     const account = baseAccounts.find((a) => a.id === input.accountId) || baseAccounts[0];
     const project = costCenters.find((p) => p.id === input.projectId) || costCenters[0];
+    const client = input.clientId
+      ? clients.find((c) => c.id === input.clientId)
+      : project?.clientId
+      ? clients.find((c) => c.id === project.clientId)
+      : undefined;
 
     const subtotal = round2(Math.max(0, input.subtotal));
     const iva = round2(subtotal * 0.16);
@@ -924,6 +1496,8 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           date: input.date,
           projectId: project?.id || input.projectId,
           projectName: project?.name || item.projectName,
+          clientId: client?.id,
+          clientName: client?.name,
           companyId: company?.id || input.companyId,
           companyName: company?.name || item.companyName,
           accountId: account?.id || input.accountId,
@@ -932,6 +1506,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           iva,
           total,
           capturedVia: input.capturedVia,
+          expenseKind: input.expenseKind || item.expenseKind || 'gasto',
         };
         void dbUpsertExpense(updated).catch(console.error);
         return updated;
@@ -950,6 +1525,309 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteExpense = (id: string) => {
     setRawExpenses((prev) => prev.filter((item) => item.id !== id));
     void dbDeleteExpense(id).catch(console.error);
+  };
+
+  // LOANS & BANK CREDIT CARDS CRUD
+  const addLoanCredit = (input: AddCDOLoanCreditInput): CDOLoanCredit => {
+    const company = companies.find((c) => c.id === input.companyId) || companies[0];
+    const account = input.accountId ? baseAccounts.find((a) => a.id === input.accountId) : undefined;
+    const project = input.projectId ? costCenters.find((p) => p.id === input.projectId) : undefined;
+    const client = input.clientId
+      ? clients.find((c) => c.id === input.clientId)
+      : project?.clientId
+      ? clients.find((c) => c.id === project.clientId)
+      : undefined;
+
+    const now = Date.now();
+    const isAdmin = currentUser?.role === 'admin';
+    const originalAmount = round2(Math.max(0, input.originalAmount));
+    const paidAmount = round2(Math.max(0, input.paidAmount || 0));
+    const remainingAmount = round2(Math.max(0, originalAmount - paidAmount));
+
+    const record: CDOLoanCredit = {
+      id: `loan-${now}`,
+      kind: input.kind,
+      title: input.title.trim(),
+      institution: input.institution.trim(),
+      cardLast4: input.cardLast4?.trim() || undefined,
+      date: input.date,
+      dueDate: input.dueDate?.trim() || undefined,
+      companyId: company?.id || input.companyId,
+      companyName: company?.name || input.companyId,
+      clientId: client?.id,
+      clientName: client?.name,
+      projectId: project?.id,
+      projectName: project?.name,
+      accountId: account?.id,
+      accountName: account?.name,
+      originalAmount,
+      paidAmount,
+      remainingAmount,
+      status: isAdmin
+        ? remainingAmount <= 0
+          ? 'liquidado'
+          : 'activo'
+        : 'pendiente_autorizacion',
+      notes: input.notes?.trim() || undefined,
+      requestedByUserId: currentUser?.id,
+      requestedByName: currentUser?.fullName || 'Usuario',
+      timestamp: now,
+    };
+
+    setRawLoans((prev) => [record, ...prev]);
+    void dbUpsertLoanCredit(record).catch(console.error);
+
+    if (!isAdmin) {
+      const label = input.kind === 'prestamo' ? 'Préstamo' : 'Crédito / Tarjeta Bancaria';
+      const notif: CDONotification = {
+        id: `notif-loan-${now}`,
+        type: 'solicitud_prestamo',
+        targetRole: 'admin',
+        title: `Solicitud de ${label} ($${originalAmount.toLocaleString('es-MX', {
+          minimumFractionDigits: 2,
+        })})`,
+        message: `${currentUser?.fullName || 'Administración'} registró solicitud de ${label} "${
+          record.title
+        }" (${record.institution}) por $${originalAmount.toLocaleString('es-MX', {
+          minimumFractionDigits: 2,
+        })}${record.accountName ? ` · Cuenta: ${record.accountName}` : ''}${
+          record.projectName ? ` · Proyecto: ${record.projectName}` : ''
+        }${record.clientName ? ` · Cliente: ${record.clientName}` : ''}.`,
+        loanId: record.id,
+        amount: originalAmount,
+        accountName: record.accountName || record.institution,
+        companyName: record.companyName,
+        projectName: record.projectName,
+        clientName: record.clientName,
+        expenseKind: input.kind,
+        createdByUserId: currentUser?.id || 'usr-contadora',
+        createdByName: currentUser?.fullName || 'Administración',
+        readByUserIds: [],
+        actionStatus: 'pendiente',
+        timestamp: now,
+      };
+      setNotifications((prev) => [notif, ...prev]);
+      void dbUpsertNotification(notif).catch(console.error);
+    }
+
+    setLastSync({
+      id: `sync-${now}`,
+      kind: 'prestamo',
+      title: isAdmin
+        ? `${input.kind === 'prestamo' ? 'Préstamo' : 'Tarjeta / Crédito'} registrado`
+        : 'Solicitud enviada al Admin para autorización',
+      detail: `${record.title} · $${originalAmount.toLocaleString('es-MX', {
+        minimumFractionDigits: 2,
+      })}`,
+      timestamp: now,
+    });
+
+    return record;
+  };
+
+  const updateLoanCredit = (id: string, data: Partial<Omit<CDOLoanCredit, 'id'>>) => {
+    setRawLoans((prev) =>
+      prev.map((loan) => {
+        if (loan.id !== id) return loan;
+        const orig =
+          data.originalAmount !== undefined ? round2(Math.max(0, data.originalAmount)) : loan.originalAmount;
+        const paid =
+          data.paidAmount !== undefined ? round2(Math.max(0, data.paidAmount)) : loan.paidAmount;
+        const rem = round2(Math.max(0, orig - paid));
+        const nextStatus =
+          data.status ||
+          (loan.status === 'pendiente_autorizacion' || loan.status === 'rechazado'
+            ? loan.status
+            : rem <= 0
+            ? 'liquidado'
+            : 'activo');
+        const updated: CDOLoanCredit = {
+          ...loan,
+          ...data,
+          originalAmount: orig,
+          paidAmount: paid,
+          remainingAmount: rem,
+          status: nextStatus,
+        };
+        void dbUpsertLoanCredit(updated).catch(console.error);
+        return updated;
+      })
+    );
+  };
+
+  const registerLoanPayment = (
+    loanId: string,
+    amount: number,
+    options?: { deductFromAccountId?: string; date?: string; notes?: string }
+  ) => {
+    const loan = loansCredits.find((l) => l.id === loanId);
+    if (!loan || amount <= 0) return;
+
+    if (options?.deductFromAccountId) {
+      const subtotalSinIva = round2(amount / 1.16);
+      addExpense({
+        concept: `Abono a ${loan.kind === 'prestamo' ? 'Préstamo' : 'Crédito'}: ${loan.title}`,
+        date: options.date || new Date().toISOString().split('T')[0],
+        projectId: loan.projectId || costCenters[0]?.id || '',
+        clientId: loan.clientId,
+        companyId: loan.companyId,
+        accountId: options.deductFromAccountId,
+        subtotal: subtotalSinIva,
+        capturedVia: 'Manual',
+        expenseKind: 'abono_prestamo',
+        linkedLoanId: loan.id,
+      });
+      return;
+    }
+
+    const nextPaid = round2(loan.paidAmount + amount);
+    updateLoanCredit(loanId, {
+      paidAmount: nextPaid,
+      notes: options?.notes ? `${loan.notes ? loan.notes + ' · ' : ''}${options.notes}` : loan.notes,
+    });
+  };
+
+  const approveLoanDirect = (loanId: string) => {
+    if (currentUser?.role !== 'admin') return;
+    const loan = loansCredits.find((l) => l.id === loanId);
+    if (!loan) return;
+    if (loan.sourceExpenseId) {
+      approveExpense(loan.sourceExpenseId);
+      return;
+    }
+    const now = Date.now();
+    updateLoanCredit(loanId, {
+      status: loan.remainingAmount <= 0 ? 'liquidado' : 'activo',
+    });
+
+    setNotifications((prev) => {
+      const updatedExisting = prev.map((n) => {
+        if (n.loanId === loanId && n.actionStatus === 'pendiente') {
+          const nextN: CDONotification = {
+            ...n,
+            actionStatus: 'autorizado',
+            readByUserIds: n.readByUserIds.includes(currentUser.id)
+              ? n.readByUserIds
+              : [...n.readByUserIds, currentUser.id],
+          };
+          void dbUpsertNotification(nextN).catch(console.error);
+          return nextN;
+        }
+        return n;
+      });
+      const replyNotif: CDONotification = {
+        id: `notif-loan-ok-${now}`,
+        type: 'egreso_autorizado',
+        targetRole: 'administracion',
+        title: `${loan.kind === 'prestamo' ? 'Préstamo' : 'Crédito Bancario'} Autorizado`,
+        message: `${currentUser.fullName} autorizó "${loan.title}" por $${loan.originalAmount.toLocaleString(
+          'es-MX',
+          { minimumFractionDigits: 2 }
+        )}.`,
+        loanId: loan.id,
+        amount: loan.originalAmount,
+        accountName: loan.accountName || loan.institution,
+        companyName: loan.companyName,
+        projectName: loan.projectName,
+        clientName: loan.clientName,
+        expenseKind: loan.kind,
+        createdByUserId: currentUser.id,
+        createdByName: currentUser.fullName,
+        readByUserIds: [],
+        actionStatus: 'autorizado',
+        timestamp: now,
+      };
+      void dbUpsertNotification(replyNotif).catch(console.error);
+      return [replyNotif, ...updatedExisting];
+    });
+  };
+
+  const rejectLoanDirect = (loanId: string, reason?: string) => {
+    if (currentUser?.role !== 'admin') return;
+    const loan = loansCredits.find((l) => l.id === loanId);
+    if (!loan) return;
+    if (loan.sourceExpenseId) {
+      rejectExpense(loan.sourceExpenseId, reason);
+      return;
+    }
+    const now = Date.now();
+    const cleanReason = reason?.trim() || 'Solicitud rechazada por Admin';
+    updateLoanCredit(loanId, { status: 'rechazado' });
+
+    setNotifications((prev) => {
+      const updatedExisting = prev.map((n) => {
+        if (n.loanId === loanId && n.actionStatus === 'pendiente') {
+          const nextN: CDONotification = {
+            ...n,
+            actionStatus: 'rechazado',
+            rejectionReason: cleanReason,
+            readByUserIds: n.readByUserIds.includes(currentUser.id)
+              ? n.readByUserIds
+              : [...n.readByUserIds, currentUser.id],
+          };
+          void dbUpsertNotification(nextN).catch(console.error);
+          return nextN;
+        }
+        return n;
+      });
+      const replyNotif: CDONotification = {
+        id: `notif-loan-rej-${now}`,
+        type: 'egreso_rechazado',
+        targetRole: 'administracion',
+        title: `${loan.kind === 'prestamo' ? 'Préstamo' : 'Crédito Bancario'} Rechazado`,
+        message: `${currentUser.fullName} rechazó "${loan.title}". Motivo: ${cleanReason}`,
+        loanId: loan.id,
+        amount: loan.originalAmount,
+        accountName: loan.accountName || loan.institution,
+        companyName: loan.companyName,
+        projectName: loan.projectName,
+        clientName: loan.clientName,
+        expenseKind: loan.kind,
+        createdByUserId: currentUser.id,
+        createdByName: currentUser.fullName,
+        readByUserIds: [],
+        actionStatus: 'rechazado',
+        rejectionReason: cleanReason,
+        timestamp: now,
+      };
+      void dbUpsertNotification(replyNotif).catch(console.error);
+      return [replyNotif, ...updatedExisting];
+    });
+  };
+
+  const deleteLoanCredit = (id: string) => {
+    setRawLoans((prev) => prev.filter((l) => l.id !== id));
+    void dbDeleteLoanCredit(id).catch(console.error);
+  };
+
+  const markNotificationRead = (id: string) => {
+    if (!currentUser) return;
+    setNotifications((prev) =>
+      prev.map((n) => {
+        if (n.id !== id || n.readByUserIds.includes(currentUser.id)) return n;
+        const updated: CDONotification = {
+          ...n,
+          readByUserIds: [...n.readByUserIds, currentUser.id],
+        };
+        void dbUpsertNotification(updated).catch(console.error);
+        return updated;
+      })
+    );
+  };
+
+  const markAllNotificationsRead = () => {
+    if (!currentUser) return;
+    setNotifications((prev) =>
+      prev.map((n) => {
+        if (n.targetRole !== currentUser.role || n.readByUserIds.includes(currentUser.id)) return n;
+        const updated: CDONotification = {
+          ...n,
+          readByUserIds: [...n.readByUserIds, currentUser.id],
+        };
+        void dbUpsertNotification(updated).catch(console.error);
+        return updated;
+      })
+    );
   };
 
   // COMPANIES (S.A.) CRUD
@@ -1139,6 +2017,8 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const clearMovementsToZero = () => {
     setRawIncomes([]);
     setRawExpenses([]);
+    setRawLoans([]);
+    setNotifications([]);
     setBaseAccounts((prev) => prev.map((a) => ({ ...a, initialBalance: 0 })));
     void dbClearMovementsToZero().catch(console.error);
     setLastSync({
@@ -1170,6 +2050,8 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setBaseAccounts([primaryAcc]);
     setRawIncomes([]);
     setRawExpenses([]);
+    setRawLoans([]);
+    setNotifications([]);
     setSelectedCompanyFilter('ALL');
     void dbSyncFullSnapshot({
       companies: [primarySa],
@@ -1179,6 +2061,8 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       concepts,
       incomes: [],
       expenses: [],
+      loansCredits: [],
+      notifications: [],
     }).catch(console.error);
     setLastSync({
       id: `sync-${Date.now()}`,
@@ -1197,6 +2081,8 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setConcepts(INITIAL_COD_CONCEPTS);
     setRawIncomes(INITIAL_COD_INCOMES);
     setRawExpenses(INITIAL_COD_EXPENSES);
+    setRawLoans(INITIAL_COD_LOANS_CREDITS);
+    setNotifications([]);
     setSelectedCompanyFilter('ALL');
     setLastSync(null);
     void dbSyncFullSnapshot({
@@ -1207,6 +2093,8 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       concepts: INITIAL_COD_CONCEPTS,
       incomes: INITIAL_COD_INCOMES,
       expenses: INITIAL_COD_EXPENSES,
+      loansCredits: INITIAL_COD_LOANS_CREDITS,
+      notifications: [],
     }).catch(console.error);
   };
 
@@ -1228,6 +2116,10 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         concepts,
         incomes,
         expenses,
+        loansCredits,
+        notifications,
+        unreadNotificationsCount,
+        pendingApprovalsCount,
         selectedCompanyFilter,
         setSelectedCompanyFilter,
         lastSync,
@@ -1238,6 +2130,16 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addExpense,
         updateExpense,
         deleteExpense,
+        approveExpense,
+        rejectExpense,
+        addLoanCredit,
+        updateLoanCredit,
+        registerLoanPayment,
+        approveLoanDirect,
+        rejectLoanDirect,
+        deleteLoanCredit,
+        markNotificationRead,
+        markAllNotificationsRead,
         addCompany,
         updateCompany,
         deleteCompany,

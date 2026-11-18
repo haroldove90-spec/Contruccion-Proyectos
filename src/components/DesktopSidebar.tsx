@@ -6,6 +6,8 @@ import {
   TrendingUp,
   Receipt,
   Landmark,
+  CreditCard,
+  Bell,
   FolderCog,
   UserCircle2,
   ChevronLeft,
@@ -52,6 +54,19 @@ const CDO_MODULES: CDOModuleItem[] = [
     badge: 'Tiempo Real',
   },
   {
+    id: 'cdo_prestamos',
+    label: 'Préstamos y Tarjetas',
+    sublabel: 'Créditos por Cliente / Proyecto',
+    icon: CreditCard,
+    badge: 'Deuda',
+  },
+  {
+    id: 'cdo_notificaciones',
+    label: 'Notificaciones',
+    sublabel: 'Autorizaciones Admin ↔ Contadora',
+    icon: Bell,
+  },
+  {
     id: 'cdo_catalogos',
     label: 'Catálogos y Clientes',
     sublabel: 'Clientes, Proyectos, S.A. y Conceptos',
@@ -69,10 +84,14 @@ const CDO_MODULES: CDOModuleItem[] = [
 
 export const DesktopSidebar: React.FC = () => {
   const { activeModule, setActiveModule, currentRole } = useERP();
-  const { lastSync, currentUser } = useCOD();
+  const { lastSync, currentUser, unreadNotificationsCount, pendingApprovalsCount } = useCOD();
   const [collapsed, setCollapsed] = useState(false);
 
   const roleLabel = currentRole === 'admin' ? 'Admin' : 'Administración';
+  const notifCount =
+    currentRole === 'admin'
+      ? Math.max(unreadNotificationsCount, pendingApprovalsCount)
+      : unreadNotificationsCount;
 
   return (
     <aside
@@ -115,6 +134,9 @@ export const DesktopSidebar: React.FC = () => {
         {CDO_MODULES.map((mod) => {
           const Icon = mod.icon;
           const isActive = activeModule === mod.id;
+          const isNotif = mod.id === 'cdo_notificaciones';
+          const dynamicBadge = isNotif && notifCount > 0 ? String(notifCount) : mod.badge;
+
           return (
             <button
               key={mod.id}
@@ -126,27 +148,34 @@ export const DesktopSidebar: React.FC = () => {
               }`}
               title={collapsed ? mod.label : undefined}
             >
-              <Icon
-                className={`w-5 h-5 shrink-0 ${
-                  isActive
-                    ? 'text-amber-400'
-                    : 'text-slate-500 group-hover:text-slate-900'
-                }`}
-              />
+              <div className="relative shrink-0">
+                <Icon
+                  className={`w-5 h-5 ${
+                    isActive
+                      ? 'text-amber-400'
+                      : 'text-slate-500 group-hover:text-slate-900'
+                  }`}
+                />
+                {collapsed && isNotif && notifCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-rose-600" />
+                )}
+              </div>
 
               {!collapsed && (
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-1">
                     <span className="text-xs truncate">{mod.label}</span>
-                    {mod.badge && (
+                    {dynamicBadge && (
                       <span
-                        className={`text-[10px] px-1.5 py-0.2 rounded-md font-medium shrink-0 ${
-                          isActive
+                        className={`text-[10px] px-1.5 py-0.2 rounded-md font-bold shrink-0 ${
+                          isNotif && notifCount > 0
+                            ? 'bg-rose-600 text-white'
+                            : isActive
                             ? 'bg-amber-400/20 text-amber-300'
                             : 'bg-slate-100 text-slate-500'
                         }`}
                       >
-                        {mod.badge}
+                        {dynamicBadge}
                       </span>
                     )}
                   </div>
@@ -179,7 +208,7 @@ export const DesktopSidebar: React.FC = () => {
       {!collapsed && (
         <div className="p-3 border-t border-slate-100 text-[11px] text-slate-400 flex items-center justify-between">
           <span>CDO · {roleLabel}</span>
-          <span className="font-mono">v2.6</span>
+          <span className="font-mono">v2.7</span>
         </div>
       )}
     </aside>
