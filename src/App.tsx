@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { ERPProvider, useERP } from './context/ERPContext';
-import { CODProvider } from './context/CODContext';
+import { CODProvider, useCOD } from './context/CODContext';
 import { RoleSelectionScreen } from './components/RoleSelectionScreen';
 import { InstitutionalHeader } from './components/InstitutionalHeader';
 import { DesktopSidebar } from './components/DesktopSidebar';
@@ -16,6 +16,7 @@ import { CODIngresosView } from './views/cod/CODIngresosView';
 import { CODEgresosView } from './views/cod/CODEgresosView';
 import { CODBancosView } from './views/cod/CODBancosView';
 import { CODCatalogosView } from './views/cod/CODCatalogosView';
+import { CODPerfilView } from './views/cod/CODPerfilView';
 
 const CDO_TABS = [
   { id: 'cdo_resumen', label: 'RESUMEN' },
@@ -23,12 +24,14 @@ const CDO_TABS = [
   { id: 'cdo_egresos', label: 'EGRESOS' },
   { id: 'cdo_bancos', label: 'CONTROL BANCARIO Y EFECTIVO' },
   { id: 'cdo_catalogos', label: 'CATÁLOGOS Y CLIENTES' },
+  { id: 'cdo_perfil', label: 'MI PERFIL' },
 ];
 
 const DashboardContent: React.FC = () => {
   const { currentRole, activeModule, setActiveModule } = useERP();
+  const { currentUser } = useCOD();
 
-  if (!currentRole) {
+  if (!currentRole || !currentUser) {
     return <RoleSelectionScreen />;
   }
 
@@ -42,6 +45,8 @@ const DashboardContent: React.FC = () => {
         return <CODBancosView />;
       case 'cdo_catalogos':
         return <CODCatalogosView />;
+      case 'cdo_perfil':
+        return <CODPerfilView />;
       case 'cdo_resumen':
       default:
         return <CODResumenView />;

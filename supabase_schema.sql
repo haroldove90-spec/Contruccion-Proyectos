@@ -4,6 +4,19 @@
 -- Ejecutar completo en: Supabase Dashboard -> SQL Editor -> New Query -> Run
 -- ============================================================================
 
+-- 0. USUARIOS Y ROLES (Admin y Administración)
+CREATE TABLE IF NOT EXISTS public.cdo_users (
+  id TEXT PRIMARY KEY,
+  full_name TEXT NOT NULL,
+  username TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('admin', 'administracion')),
+  email TEXT,
+  phone TEXT,
+  position TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- 1. SOCIEDADES ANÓNIMAS (S.A.)
 CREATE TABLE IF NOT EXISTS public.cdo_companies (
   id TEXT PRIMARY KEY,
@@ -97,6 +110,7 @@ CREATE TABLE IF NOT EXISTS public.cdo_expenses (
 -- ============================================================================
 -- ÍNDICES PARA CONSULTAS RÁPIDAS
 -- ============================================================================
+CREATE INDEX IF NOT EXISTS idx_cdo_users_username ON public.cdo_users(username);
 CREATE INDEX IF NOT EXISTS idx_cdo_incomes_company ON public.cdo_incomes(company_id);
 CREATE INDEX IF NOT EXISTS idx_cdo_incomes_account ON public.cdo_incomes(account_id);
 CREATE INDEX IF NOT EXISTS idx_cdo_expenses_company ON public.cdo_expenses(company_id);
@@ -159,6 +173,7 @@ LEFT JOIN (
 -- ============================================================================
 -- ROW LEVEL SECURITY (RLS) — Acceso para API pública de la app CDO
 -- ============================================================================
+ALTER TABLE public.cdo_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cdo_companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cdo_clients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cdo_projects ENABLE ROW LEVEL SECURITY;
@@ -166,6 +181,9 @@ ALTER TABLE public.cdo_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cdo_concepts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cdo_incomes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cdo_expenses ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "cdo_users_all" ON public.cdo_users;
+CREATE POLICY "cdo_users_all" ON public.cdo_users FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "cdo_companies_all" ON public.cdo_companies;
 CREATE POLICY "cdo_companies_all" ON public.cdo_companies FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
@@ -187,6 +205,20 @@ CREATE POLICY "cdo_incomes_all" ON public.cdo_incomes FOR ALL TO anon, authentic
 
 DROP POLICY IF EXISTS "cdo_expenses_all" ON public.cdo_expenses;
 CREATE POLICY "cdo_expenses_all" ON public.cdo_expenses FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+-- ============================================================================
+-- USUARIOS Y CREDENCIALES INICIALES (SHA-256)
+-- ============================================================================
+INSERT INTO public.cdo_users (id, full_name, username, password_hash, role, position) VALUES
+  ('usr-luis', 'Luis Treviño', 'luis_trevi', encode(sha256(convert_to('Chevropar#1970', 'UTF8')), 'hex'), 'admin', 'Director / Admin'),
+  ('usr-contadora', 'Contadora General', 'contadora', encode(sha256(convert_to('Contadora_123', 'UTF8')), 'hex'), 'administracion', 'Administración y Contabilidad'),
+  ('usr-harold', 'Harold Anguiano', 'haroldo90', encode(sha256(convert_to('Chevropar#1970', 'UTF8')), 'hex'), 'admin', 'Socio / Admin')
+ON CONFLICT (id) DO UPDATE SET
+  full_name = EXCLUDED.full_name,
+  username = EXCLUDED.username,
+  password_hash = EXCLUDED.password_hash,
+  role = EXCLUDED.role,
+  position = EXCLUDED.position;
 
 -- ============================================================================
 -- DATOS INICIALES BASE (OPCIONAL — Puedes limpiarlos desde "Iniciar en Cero")

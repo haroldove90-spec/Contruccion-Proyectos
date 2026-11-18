@@ -7,6 +7,7 @@ import {
   Receipt,
   Landmark,
   FolderCog,
+  UserCircle2,
   ChevronLeft,
   ChevronRight,
   Zap,
@@ -57,12 +58,21 @@ const CDO_MODULES: CDOModuleItem[] = [
     icon: FolderCog,
     badge: 'Control',
   },
+  {
+    id: 'cdo_perfil',
+    label: 'Mi Perfil',
+    sublabel: 'Datos personales y contraseña',
+    icon: UserCircle2,
+    badge: 'Cuenta',
+  },
 ];
 
 export const DesktopSidebar: React.FC = () => {
-  const { activeModule, setActiveModule } = useERP();
-  const { lastSync } = useCOD();
+  const { activeModule, setActiveModule, currentRole } = useERP();
+  const { lastSync, currentUser } = useCOD();
   const [collapsed, setCollapsed] = useState(false);
+
+  const roleLabel = currentRole === 'admin' ? 'Admin' : 'Administración';
 
   return (
     <aside
@@ -72,12 +82,23 @@ export const DesktopSidebar: React.FC = () => {
     >
       <div className="p-3 border-b border-slate-100 flex items-center justify-between">
         {!collapsed && (
-          <div>
-            <span className="text-xs font-black text-slate-900 uppercase tracking-wider pl-1 block">
-              CDO
-            </span>
-            <span className="text-[11px] text-slate-500 pl-1 block">
-              Control Total y Sincronización
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 pl-1">
+              <span className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                CDO
+              </span>
+              <span
+                className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                  currentRole === 'admin'
+                    ? 'bg-slate-900 text-amber-400'
+                    : 'bg-blue-50 text-blue-700 border border-blue-200'
+                }`}
+              >
+                {roleLabel}
+              </span>
+            </div>
+            <span className="text-[11px] text-slate-500 pl-1 block truncate">
+              {currentUser?.fullName || 'Control Total y Sincronización'}
             </span>
           </div>
         )}
@@ -157,7 +178,7 @@ export const DesktopSidebar: React.FC = () => {
 
       {!collapsed && (
         <div className="p-3 border-t border-slate-100 text-[11px] text-slate-400 flex items-center justify-between">
-          <span>CDO</span>
+          <span>CDO · {roleLabel}</span>
           <span className="font-mono">v2.6</span>
         </div>
       )}

@@ -7,9 +7,11 @@ import type {
   CODConceptItem,
   CODIncome,
   CODExpense,
+  CDOUser,
 } from '../context/CODContext';
 
 export interface CDOHydratedData {
+  users: CDOUser[];
   companies: CODCompany[];
   clients: CODClient[];
   costCenters: CODCostCenter[];
@@ -21,7 +23,8 @@ export interface CDOHydratedData {
 
 export async function fetchAllCDOFromSupabase(): Promise<CDOHydratedData | null> {
   try {
-    const [coRes, cliRes, projRes, accRes, conRes, incRes, expRes] = await Promise.all([
+    const [usrRes, coRes, cliRes, projRes, accRes, conRes, incRes, expRes] = await Promise.all([
+      supabase.from('cdo_users').select('*').order('created_at', { ascending: true }),
       supabase.from('cdo_companies').select('*').order('created_at', { ascending: true }),
       supabase.from('cdo_clients').select('*').order('created_at', { ascending: true }),
       supabase.from('cdo_projects').select('*').order('created_at', { ascending: true }),
@@ -51,6 +54,19 @@ export async function fetchAllCDOFromSupabase(): Promise<CDOHydratedData | null>
     }
 
     return {
+      users:
+        usrRes.error || !usrRes.data
+          ? []
+          : usrRes.data.map((r) => ({
+              id: r.id,
+              fullName: r.full_name,
+              username: r.username,
+              passwordHash: r.password_hash,
+              role: r.role as 'admin' | 'administracion',
+              email: r.email || '',
+              phone: r.phone || '',
+              position: r.position || '',
+            })),
       companies: (coRes.data || []).map((r) => ({
         id: r.id,
         name: r.name,
@@ -241,6 +257,23 @@ export async function dbDeleteExpense(id: string) {
   await supabase.from('cdo_expenses').delete().eq('id', id);
 }
 
+export async function dbUpsertUser(u: CDOUser) {
+  await supabase.from('cdo_users').upsert({
+    id: u.id,
+    full_name: u.fullName,
+    username: u.username,
+    password_hash: u.passwordHash,
+    role: u.role,
+    email: u.email || null,
+    phone: u.phone || null,
+    position: u.position || null,
+  });
+}
+
+export async function dbDeleteUser(id: string) {
+  await supabase.from('cdo_users').delete().eq('id', id);
+}
+
 export async function dbClearMovementsToZero() {
   await Promise.all([
     supabase.from('cdo_incomes').delete().neq('id', ''),
@@ -249,7 +282,7 @@ export async function dbClearMovementsToZero() {
   ]);
 }
 
-export async function dbSyncFullSnapshot(data: CDOHydratedData) {
+export async function dbSyncFullSnapshot(data: Omit<CDOHydratedData, 'users'>) {
   await Promise.all([
     supabase.from('cdo_incomes').delete().neq('id', ''),
     supabase.from('cdo_expenses').delete().neq('id', ''),

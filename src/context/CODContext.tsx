@@ -15,9 +15,23 @@ import {
   dbDeleteIncome,
   dbUpsertExpense,
   dbDeleteExpense,
+  dbUpsertUser,
+  dbDeleteUser,
   dbClearMovementsToZero,
   dbSyncFullSnapshot,
 } from '../lib/cdoSupabaseSync';
+import { sha256Hex } from '../lib/hash';
+
+export interface CDOUser {
+  id: string;
+  fullName: string;
+  username: string;
+  passwordHash: string;
+  role: 'admin' | 'administracion';
+  email?: string;
+  phone?: string;
+  position?: string;
+}
 
 export interface CODCompany {
   id: string;
@@ -102,11 +116,44 @@ export interface CODExpense {
 
 export interface CODSyncBanner {
   id: string;
-  kind: 'ingreso' | 'egreso' | 'cuenta' | 'catalogo';
+  kind: 'ingreso' | 'egreso' | 'cuenta' | 'catalogo' | 'perfil';
   title: string;
   detail: string;
   timestamp: number;
 }
+
+export const INITIAL_CDO_USERS: CDOUser[] = [
+  {
+    id: 'usr-luis',
+    fullName: 'Luis Treviño',
+    username: 'luis_trevi',
+    passwordHash: sha256Hex('Chevropar#1970'),
+    role: 'admin',
+    email: '',
+    phone: '',
+    position: 'Director / Admin',
+  },
+  {
+    id: 'usr-contadora',
+    fullName: 'Contadora General',
+    username: 'contadora',
+    passwordHash: sha256Hex('Contadora_123'),
+    role: 'administracion',
+    email: '',
+    phone: '',
+    position: 'Administración y Contabilidad',
+  },
+  {
+    id: 'usr-harold',
+    fullName: 'Harold Anguiano',
+    username: 'haroldo90',
+    passwordHash: sha256Hex('Chevropar#1970'),
+    role: 'admin',
+    email: '',
+    phone: '',
+    position: 'Socio / Admin',
+  },
+];
 
 export const INITIAL_COD_COMPANIES: CODCompany[] = [
   { id: 'sa-1', name: 'S.A. Constructora 1', shortName: 'Constructora 1', rfc: 'CON200115AB1' },
@@ -289,6 +336,33 @@ export interface AddCODAccountInput {
 }
 
 interface CODContextType {
+  users: CDOUser[];
+  currentUser: CDOUser | null;
+  login: (username: string, password: string) => { ok: true; user: CDOUser } | { ok: false; error: string };
+  logout: () => void;
+  updateCurrentUserProfile: (data: {
+    fullName: string;
+    username: string;
+    email?: string;
+    phone?: string;
+    position?: string;
+  }) => { ok: true } | { ok: false; error: string };
+  changeCurrentUserPassword: (
+    currentPassword: string,
+    newPassword: string
+  ) => { ok: true } | { ok: false; error: string };
+  upsertTeamUser: (data: {
+    id?: string;
+    fullName: string;
+    username: string;
+    role: 'admin' | 'administracion';
+    password?: string;
+    email?: string;
+    phone?: string;
+    position?: string;
+  }) => { ok: true; user: CDOUser } | { ok: false; error: string };
+  deleteTeamUser: (id: string) => boolean;
+
   companies: CODCompany[];
   clients: CODClient[];
   costCenters: CODCostCenter[];
@@ -346,6 +420,8 @@ const CODContext = createContext<CODContextType | undefined>(undefined);
 
 const STORAGE_KEYS = {
   version: 'pc_cdo_schema_v2',
+  users: 'pc_cdo_v2_users',
+  sessionUserId: 'pc_cdo_session_user_id',
   companies: 'pc_cdo_v2_companies',
   clients: 'pc_cdo_v2_clients',
   costCenters: 'pc_cdo_v2_obras',
@@ -372,6 +448,13 @@ const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string>('ALL');
+
+  const [users, setUsers] = useState<CDOUser[]>(() =>
+    loadCODStored(STORAGE_KEYS.users, INITIAL_CDO_USERS)
+  );
+  const [currentUserId, setCurrentUserId] = useState<string | null>(() => {
+    return localStorage.getItem(STORAGE_KEYS.sessionUserId) || null;
+  });
 
   const [companies, setCompanies] = useState<CODCompany[]>(() =>
     loadCODStored(STORAGE_KEYS.companies, INITIAL_COD_COMPANIES)
@@ -405,6 +488,7 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     let active = true;
     fetchAllCDOFromSupabase().then((remote) => {
       if (!active || !remote) return;
+      if (remote.users.length > 0) setUsers(remote.users);
       setCompanies(remote.companies);
       setClients(remote.clients);
       setRawCostCenters(remote.costCenters);
@@ -417,6 +501,18 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.users, JSON.stringify(users));
+  }, [users]);
+
+  useEffect(() => {
+    if (currentUserId) {
+      localStorage.setItem(STORAGE_KEYS.sessionUserId, currentUserId);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.sessionUserId);
+    }
+  }, [currentUserId]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.companies, JSON.stringify(companies));
@@ -445,6 +541,163 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.expenses, JSON.stringify(rawExpenses));
   }, [rawExpenses]);
+
+  const currentUser = useMemo<CDOUser | null>(() => {
+    if (!currentUserId) return null;
+    return users.find((u) => u.id === currentUserId) || null;
+  }, [users, currentUserId]);
+
+  const login = (
+    username: string,
+    password: string
+  ): { ok: true; user: CDOUser } | { ok: false; error: string } => {
+    const normalized = username.trim().toLowerCase();
+    if (!normalized || !password) {
+      return { ok: false, error: 'Ingresa tu usuario y contraseña.' };
+    }
+    const matched = users.find((u) => u.username.toLowerCase() === normalized);
+    if (!matched) {
+      return { ok: false, error: 'Usuario o contraseña incorrectos.' };
+    }
+    const pwdHash = sha256Hex(password);
+    if (matched.passwordHash !== pwdHash) {
+      return { ok: false, error: 'Usuario o contraseña incorrectos.' };
+    }
+    setCurrentUserId(matched.id);
+    return { ok: true, user: matched };
+  };
+
+  const logout = () => {
+    setCurrentUserId(null);
+  };
+
+  const updateCurrentUserProfile = (data: {
+    fullName: string;
+    username: string;
+    email?: string;
+    phone?: string;
+    position?: string;
+  }): { ok: true } | { ok: false; error: string } => {
+    if (!currentUser) return { ok: false, error: 'No hay sesión activa.' };
+    const cleanFullName = data.fullName.trim();
+    const cleanUsername = data.username.trim().toLowerCase();
+    if (!cleanFullName || !cleanUsername) {
+      return { ok: false, error: 'El nombre completo y usuario son obligatorios.' };
+    }
+    const duplicate = users.find(
+      (u) => u.id !== currentUser.id && u.username.toLowerCase() === cleanUsername
+    );
+    if (duplicate) {
+      return { ok: false, error: 'Ese nombre de usuario ya está en uso.' };
+    }
+
+    const updated: CDOUser = {
+      ...currentUser,
+      fullName: cleanFullName,
+      username: cleanUsername,
+      email: data.email?.trim() || '',
+      phone: data.phone?.trim() || '',
+      position: data.position?.trim() || '',
+    };
+
+    setUsers((prev) => prev.map((u) => (u.id === currentUser.id ? updated : u)));
+    void dbUpsertUser(updated).catch(console.error);
+    setLastSync({
+      id: `sync-${Date.now()}`,
+      kind: 'perfil',
+      title: 'Perfil actualizado',
+      detail: `${updated.fullName} (@${updated.username}) guardado correctamente`,
+      timestamp: Date.now(),
+    });
+    return { ok: true };
+  };
+
+  const changeCurrentUserPassword = (
+    currentPassword: string,
+    newPassword: string
+  ): { ok: true } | { ok: false; error: string } => {
+    if (!currentUser) return { ok: false, error: 'No hay sesión activa.' };
+    if (sha256Hex(currentPassword) !== currentUser.passwordHash) {
+      return { ok: false, error: 'La contraseña actual no es correcta.' };
+    }
+    if (newPassword.trim().length < 6) {
+      return { ok: false, error: 'La nueva contraseña debe tener al menos 6 caracteres.' };
+    }
+
+    const updated: CDOUser = {
+      ...currentUser,
+      passwordHash: sha256Hex(newPassword),
+    };
+    setUsers((prev) => prev.map((u) => (u.id === currentUser.id ? updated : u)));
+    void dbUpsertUser(updated).catch(console.error);
+    setLastSync({
+      id: `sync-${Date.now()}`,
+      kind: 'perfil',
+      title: 'Contraseña actualizada',
+      detail: `Credencial segura guardada para @${updated.username}`,
+      timestamp: Date.now(),
+    });
+    return { ok: true };
+  };
+
+  const upsertTeamUser = (data: {
+    id?: string;
+    fullName: string;
+    username: string;
+    role: 'admin' | 'administracion';
+    password?: string;
+    email?: string;
+    phone?: string;
+    position?: string;
+  }): { ok: true; user: CDOUser } | { ok: false; error: string } => {
+    const cleanFullName = data.fullName.trim();
+    const cleanUsername = data.username.trim().toLowerCase();
+    if (!cleanFullName || !cleanUsername) {
+      return { ok: false, error: 'Nombre y usuario son obligatorios.' };
+    }
+    const existing = data.id ? users.find((u) => u.id === data.id) : undefined;
+    const duplicate = users.find(
+      (u) => u.id !== data.id && u.username.toLowerCase() === cleanUsername
+    );
+    if (duplicate) {
+      return { ok: false, error: 'Ese usuario ya existe.' };
+    }
+    if (!existing && (!data.password || data.password.length < 6)) {
+      return { ok: false, error: 'Asigna una contraseña de al menos 6 caracteres.' };
+    }
+
+    const record: CDOUser = {
+      id: existing ? existing.id : `usr-${Date.now()}`,
+      fullName: cleanFullName,
+      username: cleanUsername,
+      role: data.role,
+      passwordHash:
+        data.password && data.password.length > 0
+          ? sha256Hex(data.password)
+          : existing!.passwordHash,
+      email: data.email?.trim() || '',
+      phone: data.phone?.trim() || '',
+      position: data.position?.trim() || '',
+    };
+
+    setUsers((prev) =>
+      existing ? prev.map((u) => (u.id === existing.id ? record : u)) : [...prev, record]
+    );
+    void dbUpsertUser(record).catch(console.error);
+    return { ok: true, user: record };
+  };
+
+  const deleteTeamUser = (id: string): boolean => {
+    if (currentUser?.id === id) return false;
+    const target = users.find((u) => u.id === id);
+    if (!target) return false;
+    if (target.role === 'admin' && users.filter((u) => u.role === 'admin').length <= 1) {
+      return false;
+    }
+    setUsers((prev) => prev.filter((u) => u.id !== id));
+    void dbDeleteUser(id).catch(console.error);
+    return true;
+  };
 
   // Resolve dynamic relational names so catalog edits reflect immediately everywhere
   const costCenters = useMemo<CODCostCenter[]>(() => {
@@ -960,6 +1213,14 @@ export const CODProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <CODContext.Provider
       value={{
+        users,
+        currentUser,
+        login,
+        logout,
+        updateCurrentUserProfile,
+        changeCurrentUserPassword,
+        upsertTeamUser,
+        deleteTeamUser,
         companies,
         clients,
         costCenters,

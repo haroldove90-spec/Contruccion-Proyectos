@@ -4,19 +4,31 @@ import { useCOD } from '../context/CODContext';
 import { BrandLogo } from './BrandLogo';
 import { PWAInstallButton } from './PWAInstallButton';
 import { ExecutivePDFModal } from './ExecutivePDFModal';
-import { LogOut, Building2, Printer } from 'lucide-react';
+import { LogOut, Building2, Printer, UserCircle2 } from 'lucide-react';
 import { UserRole } from '../types/erp';
 
-const ROLE_NAMES: Record<UserRole, { label: string; badgeColor: string }> = {
-  cdo: { label: 'CDO', badgeColor: 'bg-slate-900 text-amber-400' },
+const ROLE_NAMES: Record<UserRole, { label: string; badgeClass: string }> = {
+  admin: { label: 'Admin', badgeClass: 'bg-amber-400 text-slate-950' },
+  administracion: { label: 'Administración', badgeClass: 'bg-blue-500 text-white' },
 };
 
 export const InstitutionalHeader: React.FC<{ onToggleSidebar?: () => void }> = () => {
   const [showPDFModal, setShowPDFModal] = useState(false);
-  const { currentRole, setCurrentRole } = useERP();
-  const { companies, selectedCompanyFilter, setSelectedCompanyFilter } = useCOD();
+  const { currentRole, setCurrentRole, setActiveModule } = useERP();
+  const {
+    companies,
+    selectedCompanyFilter,
+    setSelectedCompanyFilter,
+    currentUser,
+    logout,
+  } = useCOD();
 
   const activeRoleData = currentRole ? ROLE_NAMES[currentRole] : null;
+
+  const handleLogout = () => {
+    logout();
+    setCurrentRole(null);
+  };
 
   return (
     <header className="sticky top-0 z-30 w-full bg-white border-b border-slate-200 shadow-2xs">
@@ -32,7 +44,7 @@ export const InstitutionalHeader: React.FC<{ onToggleSidebar?: () => void }> = (
               onChange={(e) => setSelectedCompanyFilter(e.target.value)}
               className="bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:outline-hidden focus:border-amber-500 cursor-pointer"
             >
-              <option value="ALL">Consolidado Grupo (3 S.A.)</option>
+              <option value="ALL">Consolidado Grupo ({companies.length} S.A.)</option>
               {companies.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -42,13 +54,25 @@ export const InstitutionalHeader: React.FC<{ onToggleSidebar?: () => void }> = (
           </div>
         </div>
 
-        {/* Right: Active COD Role, PDF, PWA Install & Logout */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          {activeRoleData && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold">
-              <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-              <span className="font-bold">{activeRoleData.label}</span>
-            </div>
+        {/* Right: Active User + Role, Profile Shortcut, PDF, PWA Install & Logout */}
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+          {currentUser && activeRoleData && (
+            <button
+              type="button"
+              onClick={() => setActiveModule('cdo_perfil')}
+              title="Ir a Mi Perfil y Configuración Personal"
+              className="flex items-center gap-2 px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+            >
+              <UserCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
+              <span className="hidden sm:inline truncate max-w-[140px]">
+                {currentUser.fullName}
+              </span>
+              <span
+                className={`px-1.5 py-0.5 rounded text-[10px] font-black uppercase tracking-wide ${activeRoleData.badgeClass}`}
+              >
+                {activeRoleData.label}
+              </span>
+            </button>
           )}
 
           <button
@@ -63,8 +87,8 @@ export const InstitutionalHeader: React.FC<{ onToggleSidebar?: () => void }> = (
           <PWAInstallButton compact={true} />
 
           <button
-            onClick={() => setCurrentRole(null)}
-            title="Cerrar sesión y volver al selector de roles"
+            onClick={handleLogout}
+            title="Cerrar sesión"
             className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-red-700 hover:bg-red-50 rounded-lg border border-slate-200 hover:border-red-200 transition-colors cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />

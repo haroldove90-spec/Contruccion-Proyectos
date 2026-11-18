@@ -188,9 +188,11 @@ function readStored<T>(key: string, fallback: T): T {
 
 export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentRole, setCurrentRoleState] = useState<UserRole | null>(() => {
+    const sessionUserId = localStorage.getItem('pc_cdo_session_user_id');
     const saved = localStorage.getItem('pc_erp_role');
-    if (saved === 'null') return null;
-    return 'cdo';
+    if (!sessionUserId) return null;
+    if (saved === 'admin' || saved === 'administracion') return saved;
+    return null;
   });
 
   const [activeCompanyId, setActiveCompanyId] = useState<string>('ALL');

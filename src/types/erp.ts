@@ -1,4 +1,4 @@
-export type UserRole = 'cdo';
+export type UserRole = 'admin' | 'administracion';
 
 export interface RoleInfo {
   id: UserRole;

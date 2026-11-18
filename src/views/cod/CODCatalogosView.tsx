@@ -24,6 +24,7 @@ type CatalogTab = 'clientes' | 'proyectos' | 'bancos' | 'empresas' | 'conceptos'
 
 export const CODCatalogosView: React.FC = () => {
   const {
+    currentUser,
     companies,
     clients,
     costCenters,
@@ -48,6 +49,7 @@ export const CODCatalogosView: React.FC = () => {
     resetCODData,
   } = useCOD();
 
+  const isAdmin = currentUser?.role === 'admin';
   const [activeTab, setActiveTab] = useState<CatalogTab>('clientes');
   const [confirmAction, setConfirmAction] = useState<'movements' | 'all' | null>(null);
 
@@ -158,35 +160,37 @@ export const CODCatalogosView: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => setConfirmAction('movements')}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 text-xs font-bold rounded-xl transition-colors cursor-pointer"
-          >
-            <Eraser className="w-3.5 h-3.5" />
-            <span>Vaciar Movimientos ($0.00)</span>
-          </button>
+        {isAdmin && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setConfirmAction('movements')}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-amber-50 text-amber-800 border border-amber-300 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+            >
+              <Eraser className="w-3.5 h-3.5" />
+              <span>Vaciar Movimientos ($0.00)</span>
+            </button>
 
-          <button
-            onClick={() => setConfirmAction('all')}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 text-xs font-bold rounded-xl transition-colors cursor-pointer"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Iniciar Todo en Cero</span>
-          </button>
+            <button
+              onClick={() => setConfirmAction('all')}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Iniciar Todo en Cero</span>
+            </button>
 
-          <button
-            onClick={resetCODData}
-            className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
-          >
-            <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
-            <span>Restablecer Ejemplo</span>
-          </button>
-        </div>
+            <button
+              onClick={resetCODData}
+              className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+              <span>Restablecer Ejemplo</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Confirmation Bar for Destructive Zero Reset */}
-      {confirmAction && (
+      {isAdmin && confirmAction && (
         <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-start gap-2.5 text-xs text-amber-950">
             <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
